@@ -11,6 +11,7 @@ prévia) que efetivamente impede o overbooking.
 """
 from datetime import datetime, date, timedelta
 from app.db import execute, execute_tx, one, all_rows, new_id
+from app.scheduling.holidays import eh_feriado_nacional
 
 DIAS_SEMANA_PADRAO = {0, 1, 2, 3, 4}  # seg-sex (0=segunda aqui, ajuste na app)
 
@@ -28,6 +29,8 @@ def carregar_configuracoes():
 
 
 def dia_esta_bloqueado(data_str: str) -> bool:
+    if eh_feriado_nacional(data_str):
+        return True
     row = one("SELECT id FROM bloqueios_dia WHERE data = ?", (data_str,))
     return row is not None
 

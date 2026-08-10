@@ -5,6 +5,17 @@
 PRAGMA foreign_keys = ON;
 
 -- ---------------------------------------------------------
+-- SESSÕES (token de autenticação emitido no login)
+-- ---------------------------------------------------------
+CREATE TABLE IF NOT EXISTS sessoes (
+    id          TEXT PRIMARY KEY,
+    usuario_id  TEXT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    token       TEXT NOT NULL UNIQUE,
+    criado_em   TEXT NOT NULL DEFAULT (datetime('now')),
+    expira_em   TEXT NOT NULL
+);
+
+-- ---------------------------------------------------------
 -- USUÁRIOS (clientes e administradores)
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS usuarios (

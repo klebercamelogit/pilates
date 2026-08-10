@@ -7,6 +7,7 @@ from flask import Blueprint, request, jsonify, current_app
 
 from app.db import execute, one, new_id
 from app import notifications
+from app.authz import usuario_da_requisicao
 
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
@@ -70,6 +71,30 @@ def cadastro():
 
     return jsonify({"mensagem": "Cadastro criado. Verifique seu e-mail para ativar a conta.",
                      "usuario_id": usuario_id}), 201
+
+
+@bp.route("/reenviar-codigo", methods=["POST"])
+def reenviar_codigo():
+    dados = request.get_json(force=True)
+    email = dados.get("email")
+    if not email:
+        return jsonify({"erro": "email é obrigatório."}), 400
+
+    usuario = one("SELECT id, nome FROM usuarios WHERE email = ? AND ativo = 0", (email,))
+    # Resposta genérica mesmo se não encontrar — evita confirmar/negar
+    # existência de e-mail cadastrado ou já ativado para quem não é dono dele.
+    if usuario:
+        novo_codigo = f"{random.randint(0, 999999):06d}"
+        execute(
+            "UPDATE usuarios SET codigo_verificacao = ? WHERE id = ?",
+            (novo_codigo, usuario["id"]),
+        )
+        notifications.enviar_codigo_verificacao(email, usuario["nome"], novo_codigo)
+
+    return jsonify({
+        "mensagem": "Se o e-mail existir e a conta ainda não estiver ativa, "
+                    "um novo código foi enviado."
+    })
 
 
 @bp.route("/ativar", methods=["POST"])
@@ -204,6 +229,35 @@ def login():
     if not usuario["ativo"]:
         return jsonify({"erro": "Conta ainda não ativada."}), 403
 
-    # TODO: integrar com Flask-Login (login_user) ou emitir JWT, conforme
-    # a decisão de sessão do frontend (SSR vs SPA).
-    return jsonify({"mensagem": "Login ok", "usuario_id": usuario["id"], "papel": usuario["papel"]})
+    token = secrets.token_urlsafe(32)
+    expira = (datetime.utcnow() + timedelta(hours=12)).isoformat()
+    execute(
+        "INSERT INTO sessoes (id, usuario_id, token, expira_em) VALUES (?, ?, ?, ?)",
+        (new_id(), usuario["id"], token, expira),
+    )
+
+    return jsonify({
+        "mensagem": "Login ok",
+        "usuario_id": usuario["id"],
+        "papel": usuario["papel"],
+        "token": token,
+    })
+
+
+@bp.route("/logout", methods=["POST"])
+def logout():
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        token = auth[len("Bearer "):].strip()
+        execute("DELETE FROM sessoes WHERE token = ?", (token,))
+    return jsonify({"mensagem": "Sessão encerrada."})
+
+
+@bp.route("/eu", methods=["GET"])
+def eu():
+    """Confere se o token ainda é válido e devolve quem está logado —
+    usado pelo frontend para checar a sessão ao carregar uma página protegida."""
+    usuario = usuario_da_requisicao()
+    if not usuario:
+        return jsonify({"erro": "Não autenticado."}), 401
+    return jsonify({"usuario_id": usuario["usuario_id"], "papel": usuario["papel"], "email": usuario["email"]})

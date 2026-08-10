@@ -68,7 +68,8 @@
 const sessao = exigirSessao('cliente');
 document.getElementById('nome-usuario').textContent = sessao ? sessao.email : '';
 
-document.getElementById('btn-logout').addEventListener('click', () => {
+document.getElementById('btn-logout').addEventListener('click', async () => {
+  try { await api('/api/auth/logout', { method: 'POST' }); } catch (e) { /* token ja invalido, segue o fluxo */ }
   limparSessao();
   window.location.href = '/';
 });
@@ -151,14 +152,23 @@ async function selecionarDia(dataStr, el) {
     const selSala = document.getElementById('sala');
     const selProf = document.getElementById('profissional');
     selSala.innerHTML = opcoesClinica.salas.map(s => `<option value="${s.id}">${s.nome}</option>`).join('');
-    selProf.innerHTML = opcoesClinica.profissionais.map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
+    selProf.innerHTML = opcoesClinica.profissionais.map(p => `<option value="${p.id}">${p.nome} (${p.duracao_padrao_min} min)</option>`).join('');
+    selProf.addEventListener('change', gerarHorarios);
   }
+  gerarHorarios();
+}
 
+function gerarHorarios() {
   const selHorario = document.getElementById('horario');
   selHorario.innerHTML = '';
+  const profId = document.getElementById('profissional').value;
+  const profissional = opcoesClinica.profissionais.find(p => p.id === profId);
+  // Duração é por profissional (negociável, definida pelo admin) — não um
+  // valor fixo global. Cada profissional pode ter uma duração diferente.
+  const duracao = profissional ? profissional.duracao_padrao_min : opcoesClinica.duracao_padrao_min;
+
   const [horaAberturaH, horaAberturaM] = opcoesClinica.hora_abertura.split(':').map(Number);
   const [horaFechamentoH] = opcoesClinica.hora_fechamento.split(':').map(Number);
-  const duracao = opcoesClinica.duracao_padrao_min;
 
   let minutos = horaAberturaH * 60 + horaAberturaM;
   const fimMinutos = horaFechamentoH * 60;
@@ -177,7 +187,9 @@ document.getElementById('form-agendamento').addEventListener('submit', async (e)
   e.preventDefault();
   limparAlerta('alerta');
   const horaInicio = document.getElementById('horario').value;
-  const duracao = opcoesClinica.duracao_padrao_min;
+  const profId = document.getElementById('profissional').value;
+  const profissional = opcoesClinica.profissionais.find(p => p.id === profId);
+  const duracao = profissional ? profissional.duracao_padrao_min : opcoesClinica.duracao_padrao_min;
   const [h, m] = horaInicio.split(':').map(Number);
   const fimMin = h * 60 + m + duracao;
   const horaFim = `${String(Math.floor(fimMin/60)).padStart(2,'0')}:${String(fimMin%60).padStart(2,'0')}`;

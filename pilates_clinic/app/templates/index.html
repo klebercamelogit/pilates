@@ -46,7 +46,7 @@ document.getElementById('form-login').addEventListener('submit', async (e) => {
       method: 'POST',
       body: JSON.stringify({ email, senha }),
     });
-    salvarSessao({ usuario_id: data.usuario_id, papel: data.papel, email });
+    salvarSessao({ usuario_id: data.usuario_id, papel: data.papel, email, token: data.token });
     window.location.href = data.papel === 'admin' ? '/admin' : '/painel';
   } catch (err) {
     mostrarAlerta('alerta', err.message);

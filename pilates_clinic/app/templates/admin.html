@@ -12,8 +12,10 @@
     <div class="brand">Pilates<span class="mark">ADMIN / RAIL 01</span></div>
     <nav>
       <a href="#" class="tab-link active" data-tab="dia">Agendamentos do dia</a>
+      <a href="#" class="tab-link" data-tab="prontuario">Prontuário do paciente</a>
       <a href="#" class="tab-link" data-tab="cliente">Cadastrar cliente</a>
-      <a href="#" class="tab-link" data-tab="bloqueios">Bloqueios de dia</a>
+      <a href="#" class="tab-link" data-tab="recursos">Salas e profissionais</a>
+      <a href="#" class="tab-link" data-tab="bloqueios">Feriados e indisponibilidades</a>
       <a href="#" class="tab-link" data-tab="config">Configurações</a>
     </nav>
     <div class="spacer"></div>
@@ -30,6 +32,30 @@
       <label for="filtro-data">Filtrar por data</label>
       <input type="date" id="filtro-data" style="max-width:220px;">
       <div id="lista-dia" style="margin-top:1em;"></div>
+    </section>
+
+    <!-- ABA: PRONTUÁRIO DO PACIENTE -->
+    <section id="painel-prontuario" style="display:none;">
+      <h1 class="rail">Prontuário do paciente</h1>
+      <p>Busque por nome, CPF ou e-mail para abrir o histórico e os exames do paciente.</p>
+      <input type="text" id="busca-cliente" placeholder="Buscar paciente..." style="max-width:360px;">
+      <div id="resultado-busca-cliente" style="margin-top:0.6em;"></div>
+
+      <div id="detalhe-prontuario" style="display:none; margin-top:1.6em;">
+        <div class="card">
+          <h2 id="prontuario-nome-cliente" class="rail"></h2>
+          <p style="font-size:0.85rem;" id="prontuario-contato"></p>
+
+          <h3>Comorbidades</h3>
+          <p id="prontuario-comorbidades"></p>
+
+          <h3>Exames</h3>
+          <div id="prontuario-exames"></div>
+
+          <h3>Histórico de agendamentos</h3>
+          <div id="prontuario-historico"></div>
+        </div>
+      </div>
     </section>
 
     <!-- ABA: CADASTRAR CLIENTE -->
@@ -49,24 +75,101 @@
       </form>
     </section>
 
-    <!-- ABA: BLOQUEIOS DE DIA -->
+    <!-- ABA: SALAS E PROFISSIONAIS -->
+    <section id="painel-recursos" style="display:none;">
+      <h1 class="rail">Salas e profissionais</h1>
+      <p>Quantidade de salas e de profissionais é gerenciável. A duração de atendimento é definida por profissional — negociável conforme a necessidade de cada paciente.</p>
+
+      <div class="grid-2" style="align-items:start;">
+        <div class="card">
+          <h3 class="rail">Salas</h3>
+          <div id="lista-salas"></div>
+          <form id="form-sala" style="margin-top:1em;">
+            <label for="nova-sala">Nova sala</label>
+            <input type="text" id="nova-sala" placeholder="ex: Sala 2" required>
+            <button type="submit" class="secondary">Adicionar sala</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <h3 class="rail">Profissionais</h3>
+          <div id="lista-profissionais"></div>
+          <form id="form-profissional" style="margin-top:1em;">
+            <label for="novo-prof-nome">Nome</label>
+            <input type="text" id="novo-prof-nome" placeholder="ex: Dra. Ana" required>
+            <label for="novo-prof-duracao">Duração de atendimento (min)</label>
+            <input type="number" id="novo-prof-duracao" value="60" min="15" step="15" required>
+            <button type="submit" class="secondary">Adicionar profissional</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ABA: FERIADOS E INDISPONIBILIDADES -->
     <section id="painel-bloqueios" style="display:none;">
-      <h1 class="rail">Bloquear um dia</h1>
-      <p>Feriados nacionais/regionais, jogos, ou fechamento por força maior.</p>
-      <form id="form-bloqueio" style="max-width:420px;">
-        <label for="b-data">Data</label>
-        <input type="date" id="b-data" required>
-        <label for="b-tipo">Tipo</label>
-        <select id="b-tipo">
-          <option value="feriado_nacional">Feriado nacional</option>
-          <option value="feriado_regional">Feriado regional</option>
-          <option value="evento">Evento (ex: jogo da Copa)</option>
-          <option value="forca_maior">Força maior (enchente, decreto)</option>
-        </select>
-        <label for="b-motivo">Motivo</label>
-        <input type="text" id="b-motivo" placeholder="ex: Natal" required>
-        <button type="submit">Bloquear dia</button>
-      </form>
+      <h1 class="rail">Feriados e indisponibilidades</h1>
+      <p><strong>Feriados nacionais são bloqueados automaticamente</strong> (calculados por ano, incluindo os móveis como Sexta-feira Santa). Use os formulários abaixo para feriados regionais, jogos, força maior, e janelas de horário indisponíveis dentro do dia (ex: almoço).</p>
+
+      <div class="grid-2" style="align-items:start;">
+        <div class="card">
+          <h3 class="rail">Bloquear um dia</h3>
+          <div id="lista-bloqueios" style="margin-bottom:1em;"></div>
+          <form id="form-bloqueio">
+            <label for="b-data">Data</label>
+            <input type="date" id="b-data" required>
+            <label for="b-tipo">Tipo</label>
+            <select id="b-tipo">
+              <option value="feriado_regional">Feriado regional</option>
+              <option value="evento">Evento (ex: jogo da Copa)</option>
+              <option value="forca_maior">Força maior (enchente, decreto)</option>
+            </select>
+            <label for="b-motivo">Motivo</label>
+            <input type="text" id="b-motivo" placeholder="ex: Aniversário da cidade" required>
+            <button type="submit" class="secondary">Bloquear dia</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <h3 class="rail">Janela indisponível no dia</h3>
+          <div id="lista-janelas" style="margin-bottom:1em;"></div>
+          <form id="form-janela">
+            <label for="j-recorrencia">Recorrência</label>
+            <select id="j-recorrencia">
+              <option value="semanal">Toda semana, neste dia</option>
+              <option value="pontual">Só numa data específica</option>
+            </select>
+            <div id="j-dia-semana-wrap">
+              <label for="j-dia-semana">Dia da semana</label>
+              <select id="j-dia-semana">
+                <option value="0">Segunda</option>
+                <option value="1">Terça</option>
+                <option value="2">Quarta</option>
+                <option value="3">Quinta</option>
+                <option value="4">Sexta</option>
+                <option value="5">Sábado</option>
+                <option value="6">Domingo</option>
+              </select>
+            </div>
+            <div id="j-data-wrap" style="display:none;">
+              <label for="j-data">Data específica</label>
+              <input type="date" id="j-data">
+            </div>
+            <div class="grid-2">
+              <div>
+                <label for="j-inicio">Início</label>
+                <input type="time" id="j-inicio" required>
+              </div>
+              <div>
+                <label for="j-fim">Fim</label>
+                <input type="time" id="j-fim" required>
+              </div>
+            </div>
+            <label for="j-motivo">Motivo</label>
+            <input type="text" id="j-motivo" placeholder="ex: Almoço">
+            <button type="submit" class="secondary">Adicionar janela</button>
+          </form>
+        </div>
+      </div>
     </section>
 
     <!-- ABA: CONFIGURAÇÕES -->
@@ -79,8 +182,34 @@
         <input type="time" id="cfg-abertura">
         <label for="cfg-fechamento">Hora de fechamento</label>
         <input type="time" id="cfg-fechamento">
-        <label for="cfg-duracao">Duração do agendamento (minutos)</label>
+        <label for="cfg-duracao">Duração padrão do agendamento (minutos)</label>
         <input type="number" id="cfg-duracao" min="15" step="15">
+
+        <label>Dias de funcionamento</label>
+        <div style="display:flex; flex-wrap:wrap; gap:0.8em; margin-bottom:1em;">
+          <label style="display:flex; align-items:center; gap:0.3em; text-transform:none; font-weight:400;">
+            <input type="checkbox" class="cfg-dia" value="0" style="width:auto;"> Segunda
+          </label>
+          <label style="display:flex; align-items:center; gap:0.3em; text-transform:none; font-weight:400;">
+            <input type="checkbox" class="cfg-dia" value="1" style="width:auto;"> Terça
+          </label>
+          <label style="display:flex; align-items:center; gap:0.3em; text-transform:none; font-weight:400;">
+            <input type="checkbox" class="cfg-dia" value="2" style="width:auto;"> Quarta
+          </label>
+          <label style="display:flex; align-items:center; gap:0.3em; text-transform:none; font-weight:400;">
+            <input type="checkbox" class="cfg-dia" value="3" style="width:auto;"> Quinta
+          </label>
+          <label style="display:flex; align-items:center; gap:0.3em; text-transform:none; font-weight:400;">
+            <input type="checkbox" class="cfg-dia" value="4" style="width:auto;"> Sexta
+          </label>
+          <label style="display:flex; align-items:center; gap:0.3em; text-transform:none; font-weight:400;">
+            <input type="checkbox" class="cfg-dia" value="5" style="width:auto;"> Sábado
+          </label>
+          <label style="display:flex; align-items:center; gap:0.3em; text-transform:none; font-weight:400;">
+            <input type="checkbox" class="cfg-dia" value="6" style="width:auto;"> Domingo
+          </label>
+        </div>
+
         <button type="submit">Salvar configurações</button>
       </form>
     </section>
@@ -92,21 +221,25 @@
 const sessao = exigirSessao('admin');
 document.getElementById('nome-usuario').textContent = sessao ? sessao.email : '';
 
-document.getElementById('btn-logout').addEventListener('click', () => {
+document.getElementById('btn-logout').addEventListener('click', async () => {
+  try { await api('/api/auth/logout', { method: 'POST' }); } catch (e) { /* token ja invalido, segue o fluxo */ }
   limparSessao();
   window.location.href = '/';
 });
 
+const TABS = ['dia','prontuario','cliente','recursos','bloqueios','config'];
 document.querySelectorAll('.tab-link').forEach(link => {
   link.addEventListener('click', (e) => {
     e.preventDefault();
     document.querySelectorAll('.tab-link').forEach(l => l.classList.remove('active'));
     link.classList.add('active');
     const tab = link.dataset.tab;
-    ['dia','cliente','bloqueios','config'].forEach(t => {
+    TABS.forEach(t => {
       document.getElementById(`painel-${t}`).style.display = t === tab ? 'block' : 'none';
     });
     if (tab === 'config') carregarConfiguracoes();
+    if (tab === 'recursos') { carregarSalas(); carregarProfissionais(); }
+    if (tab === 'bloqueios') { carregarBloqueios(); carregarJanelas(); }
   });
 });
 
@@ -132,9 +265,89 @@ async function carregarAgendamentosDia() {
         <strong>${a.hora_inicio} — ${a.cliente_nome}</strong><br>
         <span style="font-size:0.85rem; color:var(--ink-soft);">${a.profissional_nome} · ${a.sala_nome}</span>
       </div>
-      <span class="badge ${a.status === 'cancelado' ? 'danger' : ''}">${a.status}</span>
+      <div style="display:flex; align-items:center; gap:0.8em;">
+        <span class="badge ${a.status === 'cancelado' ? 'danger' : ''}">${a.status}</span>
+        ${a.status === 'confirmado' ? `<button type="button" class="secondary btn-cancelar-admin" data-id="${a.id}">Cancelar</button>` : ''}
+      </div>
     </div>
   `).join('');
+
+  document.querySelectorAll('.btn-cancelar-admin').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Cancelar este agendamento?')) return;
+      try {
+        await api(`/api/admin/agendamentos/${btn.dataset.id}/cancelar`, { method: 'POST' });
+        carregarAgendamentosDia();
+      } catch (err) { alert(err.message); }
+    });
+  });
+}
+
+// --- Prontuário do paciente ---
+let debounceBusca;
+document.getElementById('busca-cliente').addEventListener('input', (e) => {
+  clearTimeout(debounceBusca);
+  debounceBusca = setTimeout(() => buscarClientes(e.target.value), 300);
+});
+
+async function buscarClientes(termo) {
+  const container = document.getElementById('resultado-busca-cliente');
+  if (!termo) { container.innerHTML = ''; return; }
+  const clientes = await api(`/api/admin/clientes?busca=${encodeURIComponent(termo)}`);
+  if (clientes.length === 0) {
+    container.innerHTML = '<p style="font-size:0.85rem;">Nenhum paciente encontrado.</p>';
+    return;
+  }
+  container.innerHTML = clientes.map(c => `
+    <div class="list-item" style="cursor:pointer;" data-id="${c.id}">
+      <div><strong>${c.nome}</strong><br><span style="font-size:0.8rem; color:var(--ink-soft);">${c.email} · CPF ${c.cpf}</span></div>
+    </div>
+  `).join('');
+  container.querySelectorAll('.list-item').forEach(el => {
+    el.addEventListener('click', () => abrirProntuario(el.dataset.id));
+  });
+}
+
+async function abrirProntuario(usuarioId) {
+  limparAlerta('alerta');
+  try {
+    const registro = await api(`/api/admin/clientes/${usuarioId}/prontuario`);
+    document.getElementById('detalhe-prontuario').style.display = 'block';
+    document.getElementById('prontuario-nome-cliente').textContent = registro.cliente.nome;
+    document.getElementById('prontuario-contato').textContent =
+      `${registro.cliente.email} · ${registro.cliente.whatsapp} · CPF ${registro.cliente.cpf}`;
+
+    if (registro.prontuario) {
+      document.getElementById('prontuario-comorbidades').textContent =
+        registro.prontuario.possui_comorbidade
+          ? (registro.prontuario.descricao_comorbidade || 'Possui comorbidade (sem descrição detalhada).')
+          : 'Nenhuma comorbidade registrada.';
+    } else {
+      document.getElementById('prontuario-comorbidades').textContent = 'Paciente ainda não preencheu o parecer médico.';
+    }
+
+    const exames = document.getElementById('prontuario-exames');
+    exames.innerHTML = registro.exames.length === 0
+      ? '<div class="empty-state">Nenhum exame anexado.</div>'
+      : registro.exames.map(ex => `
+          <div class="list-item">
+            <span>${ex.nome_original}</span>
+            <a href="/api/exames/${ex.id}/download" class="btn secondary" target="_blank">Baixar</a>
+          </div>
+        `).join('');
+
+    const historico = document.getElementById('prontuario-historico');
+    historico.innerHTML = registro.historico.length === 0
+      ? '<div class="empty-state">Nenhum agendamento no histórico.</div>'
+      : registro.historico.map(h => `
+          <div class="list-item ${h.status === 'cancelado' ? 'cancelado' : ''}">
+            <div>${h.data.split('-').reverse().join('/')} às ${h.hora_inicio} — ${h.profissional_nome} · ${h.sala_nome}</div>
+            <span class="badge ${h.status === 'cancelado' ? 'danger' : ''}">${h.status}</span>
+          </div>
+        `).join('');
+  } catch (err) {
+    mostrarAlerta('alerta', err.message);
+  }
 }
 
 // --- Cadastro manual de cliente ---
@@ -158,7 +371,95 @@ document.getElementById('form-cliente').addEventListener('submit', async (e) => 
   }
 });
 
-// --- Bloqueio de dia ---
+// --- Salas ---
+async function carregarSalas() {
+  const salas = await api('/api/admin/salas');
+  document.getElementById('lista-salas').innerHTML = salas.map(s => `
+    <div class="list-item ${!s.ativa ? 'cancelado' : ''}">
+      <span>${s.nome}</span>
+      <button type="button" class="secondary btn-toggle-sala" data-id="${s.id}" data-ativa="${s.ativa}">
+        ${s.ativa ? 'Desativar' : 'Ativar'}
+      </button>
+    </div>
+  `).join('') || '<p style="font-size:0.85rem;">Nenhuma sala cadastrada.</p>';
+
+  document.querySelectorAll('.btn-toggle-sala').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await api(`/api/admin/salas/${btn.dataset.id}`, {
+        method: 'PUT', body: JSON.stringify({ ativa: btn.dataset.ativa === '0' }),
+      });
+      carregarSalas();
+    });
+  });
+}
+
+document.getElementById('form-sala').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  limparAlerta('alerta');
+  try {
+    await api('/api/admin/salas', { method: 'POST', body: JSON.stringify({ nome: document.getElementById('nova-sala').value }) });
+    document.getElementById('form-sala').reset();
+    carregarSalas();
+  } catch (err) { mostrarAlerta('alerta', err.message); }
+});
+
+// --- Profissionais ---
+async function carregarProfissionais() {
+  const profs = await api('/api/admin/profissionais');
+  document.getElementById('lista-profissionais').innerHTML = profs.map(p => `
+    <div class="list-item ${!p.ativo ? 'cancelado' : ''}">
+      <span>${p.nome} — <span class="badge">${p.duracao_padrao_min} min</span></span>
+      <button type="button" class="secondary btn-toggle-prof" data-id="${p.id}" data-ativo="${p.ativo}">
+        ${p.ativo ? 'Desativar' : 'Ativar'}
+      </button>
+    </div>
+  `).join('') || '<p style="font-size:0.85rem;">Nenhum profissional cadastrado.</p>';
+
+  document.querySelectorAll('.btn-toggle-prof').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await api(`/api/admin/profissionais/${btn.dataset.id}`, {
+        method: 'PUT', body: JSON.stringify({ ativo: btn.dataset.ativo === '0' }),
+      });
+      carregarProfissionais();
+    });
+  });
+}
+
+document.getElementById('form-profissional').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  limparAlerta('alerta');
+  try {
+    await api('/api/admin/profissionais', {
+      method: 'POST',
+      body: JSON.stringify({
+        nome: document.getElementById('novo-prof-nome').value,
+        duracao_padrao_min: parseInt(document.getElementById('novo-prof-duracao').value, 10),
+      }),
+    });
+    document.getElementById('form-profissional').reset();
+    document.getElementById('novo-prof-duracao').value = 60;
+    carregarProfissionais();
+  } catch (err) { mostrarAlerta('alerta', err.message); }
+});
+
+// --- Bloqueios de dia ---
+async function carregarBloqueios() {
+  const bloqueios = await api('/api/admin/bloqueios-dia');
+  document.getElementById('lista-bloqueios').innerHTML = bloqueios.map(b => `
+    <div class="list-item">
+      <span>${b.data.split('-').reverse().join('/')} — ${b.motivo} <span class="badge plum">${b.tipo.replace('_',' ')}</span></span>
+      <button type="button" class="secondary btn-del-bloqueio" data-id="${b.id}">Remover</button>
+    </div>
+  `).join('') || '<p style="font-size:0.85rem;">Nenhum bloqueio manual cadastrado.</p>';
+
+  document.querySelectorAll('.btn-del-bloqueio').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await api(`/api/admin/bloqueios-dia/${btn.dataset.id}`, { method: 'DELETE' });
+      carregarBloqueios();
+    });
+  });
+}
+
 document.getElementById('form-bloqueio').addEventListener('submit', async (e) => {
   e.preventDefault();
   limparAlerta('alerta');
@@ -171,11 +472,57 @@ document.getElementById('form-bloqueio').addEventListener('submit', async (e) =>
         motivo: document.getElementById('b-motivo').value,
       }),
     });
-    mostrarAlerta('alerta', 'Dia bloqueado com sucesso.', 'success');
     document.getElementById('form-bloqueio').reset();
-  } catch (err) {
-    mostrarAlerta('alerta', err.message);
-  }
+    carregarBloqueios();
+  } catch (err) { mostrarAlerta('alerta', err.message); }
+});
+
+// --- Janelas indisponíveis ---
+document.getElementById('j-recorrencia').addEventListener('change', (e) => {
+  const semanal = e.target.value === 'semanal';
+  document.getElementById('j-dia-semana-wrap').style.display = semanal ? 'block' : 'none';
+  document.getElementById('j-data-wrap').style.display = semanal ? 'none' : 'block';
+});
+
+async function carregarJanelas() {
+  const janelas = await api('/api/admin/janelas-indisponiveis');
+  const DIAS = ['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'];
+  document.getElementById('lista-janelas').innerHTML = janelas.map(j => `
+    <div class="list-item">
+      <span>
+        ${j.dia_semana !== null ? DIAS[j.dia_semana] + ' (toda semana)' : j.data_especifica.split('-').reverse().join('/')}
+        · ${j.hora_inicio}–${j.hora_fim} ${j.motivo ? '— ' + j.motivo : ''}
+      </span>
+      <button type="button" class="secondary btn-del-janela" data-id="${j.id}">Remover</button>
+    </div>
+  `).join('') || '<p style="font-size:0.85rem;">Nenhuma janela indisponível cadastrada.</p>';
+
+  document.querySelectorAll('.btn-del-janela').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await api(`/api/admin/janelas-indisponiveis/${btn.dataset.id}`, { method: 'DELETE' });
+      carregarJanelas();
+    });
+  });
+}
+
+document.getElementById('form-janela').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  limparAlerta('alerta');
+  const semanal = document.getElementById('j-recorrencia').value === 'semanal';
+  try {
+    await api('/api/admin/janelas-indisponiveis', {
+      method: 'POST',
+      body: JSON.stringify({
+        dia_semana: semanal ? parseInt(document.getElementById('j-dia-semana').value, 10) : null,
+        data_especifica: semanal ? null : document.getElementById('j-data').value,
+        hora_inicio: document.getElementById('j-inicio').value,
+        hora_fim: document.getElementById('j-fim').value,
+        motivo: document.getElementById('j-motivo').value,
+      }),
+    });
+    document.getElementById('form-janela').reset();
+    carregarJanelas();
+  } catch (err) { mostrarAlerta('alerta', err.message); }
 });
 
 // --- Configurações ---
@@ -186,6 +533,11 @@ async function carregarConfiguracoes() {
     document.getElementById('cfg-abertura').value = cfg.hora_abertura;
     document.getElementById('cfg-fechamento').value = cfg.hora_fechamento;
     document.getElementById('cfg-duracao').value = cfg.duracao_padrao_min;
+
+    const diasAtivos = cfg.dias_funcionamento.split(',').filter(Boolean);
+    document.querySelectorAll('.cfg-dia').forEach(chk => {
+      chk.checked = diasAtivos.includes(chk.value);
+    });
   } catch (err) {
     mostrarAlerta('alerta', err.message);
   }
@@ -194,6 +546,7 @@ async function carregarConfiguracoes() {
 document.getElementById('form-config').addEventListener('submit', async (e) => {
   e.preventDefault();
   limparAlerta('alerta');
+  const diasSelecionados = Array.from(document.querySelectorAll('.cfg-dia:checked')).map(c => c.value);
   try {
     await api('/api/admin/configuracoes', {
       method: 'PUT',
@@ -202,6 +555,7 @@ document.getElementById('form-config').addEventListener('submit', async (e) => {
         hora_abertura: document.getElementById('cfg-abertura').value,
         hora_fechamento: document.getElementById('cfg-fechamento').value,
         duracao_padrao_min: parseInt(document.getElementById('cfg-duracao').value, 10),
+        dias_funcionamento: diasSelecionados.join(','),
       }),
     });
     mostrarAlerta('alerta', 'Configurações salvas.', 'success');

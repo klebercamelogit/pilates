@@ -1,63 +1,56 @@
 # Sistema de Gestão e Agendamento — Clínica de Pilates
 
-Backend Flask, banco Turso (libSQL), deploy em Vercel Serverless Functions.
+Backend Flask + frontend em templates HTML/JS, banco Turso (libSQL), deploy em Vercel Serverless Functions (zero-config, sem `vercel.json`).
 
 ## O que já está implementado
 
-- Cadastro de cliente com código de verificação por e-mail (envio de e-mail é TODO — ver `app/auth/routes.py`).
-- Recuperação de senha por CPF + confirmação de e-mail ofuscado + link de reset.
-- Prontuário e exames: schema pronto, upload via URL pré-assinada (`app/storage.py`), **não** via Flask.
-- Agendamento com validação de regras (feriados, dia da semana, expediente, janelas indisponíveis, capacidade) e proteção contra concorrência via UNIQUE constraint no banco.
-- Painel admin: cadastro manual de cliente (sem expor senha), configurações, bloqueios de dia, janelas indisponíveis, listagem de agendamentos.
-- Estrutura de pagamento (tabela `pagamentos`) pronta para plugar gateway depois.
+**Cliente:**
+- Cadastro com código de verificação enviado por e-mail (SMTP), com opção de reenvio se o e-mail não chegar
+- Ativação de conta, login com token de sessão real
+- Recuperação de senha: CPF → e-mail ofuscado → confirmação → token de reset, tudo por e-mail
+- Prontuário: registro de comorbidades e upload de exames (PDF/JPG/PNG)
+- Painel com calendário de agendamento (feriados nacionais automáticos + bloqueios manuais já refletidos), histórico de sessões, cancelamento
+
+**Administrador:**
+- Login com verificação real de papel (`papel = 'admin'`), token exigido em toda rota `/api/admin/*`
+- Agendamentos do dia, com cancelamento de qualquer cliente (não só o próprio)
+- Prontuário do paciente: busca por nome/CPF/e-mail, visualização de comorbidades, exames (com download) e histórico completo
+- Cadastro manual de cliente (dispara e-mail de primeiro acesso, nunca expõe senha)
+- CRUD de salas e de profissionais — quantidade gerenciável, duração de atendimento individual por profissional (negociável)
+- Feriados regionais, eventos (jogos), força maior — cadastrar e remover (feriados nacionais são automáticos, não precisam ser cadastrados)
+- Janelas indisponíveis dentro do dia (recorrentes por dia da semana, ou pontuais) — cadastrar e remover
+- Configurações: capacidade por dia, horário de abertura/fechamento, duração padrão, dias de funcionamento (qualquer combinação de dias da semana)
+
+**Geral:**
+- Frontend responsivo (mobile e desktop) para todas as telas
+- Estrutura de pagamento (tabela `pagamentos`) pronta para plugar gateway depois — integração ainda não escrita
+
+## Feriados nacionais — o que está incluído
+
+Calculados automaticamente por ano em `app/scheduling/holidays.py`, sem o admin precisar cadastrar nada: os 8 feriados civis de data fixa (Confraternização Universal, Tiradentes, Dia do Trabalho, Independência, Nossa Senhora Aparecida, Finados, Proclamação da República, Natal) mais a Sexta-feira Santa (móvel, calculada a partir da Páscoa).
+
+**Carnaval e Corpus Christi não estão incluídos** — são amplamente observados no Brasil, mas seu status como feriado nacional decretado varia por município. Cadastre-os manualmente como "feriado regional" pelo painel admin se sua clínica os observa, junto com qualquer feriado municipal específico da sua cidade. Esta lista não substitui a conferência do calendário oficial do seu município.
 
 ## O que NÃO está implementado ainda (de propósito)
 
-Estes pontos exigem decisões de produto/infra que não estavam claras no escopo original e não devem ser "inventadas" no código:
+1. **Proteção nas rotas do próprio cliente** — `/api/agendamentos/minhas/<id>`, `/api/prontuarios/<id>` e similares ainda não exigem token (diferente das rotas `/api/admin/*`, que já exigem). O `usuario_id` é um UUID, o que reduz mas não elimina risco de acesso indevido por adivinhação. Se for para produção real, isso deve ser fechado com o mesmo mecanismo de token já usado no admin.
+2. **WhatsApp Business API** — isolado de propósito. Exige conta Business verificada na Meta e aprovação de templates de mensagem antes de qualquer código funcionar. Trate como fase 2, não como parte do MVP.
+3. **Gateway de pagamento** — schema pronto, integração não escrita.
 
-1. **Autenticação de sessão real** — as rotas de login retornam os dados do usuário mas não emitem sessão/JWT. Decida entre Flask-Login com sessão (SSR) ou JWT (SPA/mobile) antes de ir pra produção.
-2. **Verificação de papel admin** — as rotas em `app/admin/routes.py` não checam `papel = 'admin'`. Isso precisa de um decorator aplicado antes do deploy.
-3. **Envio de e-mail** (código de verificação, reset de senha, primeiro acesso) — pontos marcados com `# TODO` em `app/auth/routes.py` e `app/admin/routes.py`. Precisa de um provedor (SES, SendGrid, Postmark).
-4. **WhatsApp Business API** — isolado de propósito. Exige conta Business verificada na Meta e aprovação de templates de mensagem antes de qualquer código funcionar. Trate como fase 2, não como parte do MVP.
-5. **Gateway de pagamento** — schema pronto, integração não escrita (o escopo original também tratava isso como "inclusão futura").
-
-## Por que estas decisões de arquitetura
-
-- **Turso via `libsql-client` puro, não SQLAlchemy**: o dialeto SQLAlchemy para libSQL é limitado; SQL explícito é mais previsível em serverless.
-- **Upload de exames fora do Flask**: Vercel Serverless tem limite de payload muito abaixo de 300MB e timeout curto. O navegador sobe o arquivo direto pro bucket S3-compatible via URL pré-assinada; o Flask só grava a referência.
-- **UNIQUE constraint como trava de concorrência real**: a validação de regras de negócio (`rules.py`) é uma checagem otimista. Quem realmente impede overbooking é o `UNIQUE(sala_id, data, hora_inicio)` no schema — se dois requests colidirem, o segundo INSERT falha e vira um erro tratado, não um agendamento duplicado.
-- **LGPD**: cadastro exige consentimento explícito (`consentimento_lgpd_aceito`) separado de qualquer "aceito os termos" genérico, com data e versão do termo registradas para auditoria. Cadastro manual pelo admin **não** pode marcar esse campo — só o próprio cliente, no primeiro acesso.
-
-## Rodando 100% local (sem Turso, sem S3, sem SMTP)
-
-Modo pensado para desenvolvimento: banco em SQLite (arquivo `local.db`) e
-exames salvos em disco (`instance/uploads`), sem precisar de conta Turso
-nem bucket S3. É o mesmo código de regras de negócio — só troca a camada
-de persistência via `DB_MODE=local` / `STORAGE_MODE=local`.
+## Setup — 100% local (sem Turso, sem S3, sem SMTP)
 
 ```bash
-chmod +x run_local.sh   # se ainda não tiver permissão de execução
+chmod +x run_local.sh
 ./run_local.sh
 ```
+Cria venv, instala as dependências do modo local, aplica `schema.sql` + `seed.sql` em `local.db` (SQLite puro), sobe em `http://localhost:5000`. Exames vão para `instance/uploads` (disco local, sem URL pré-assinada — sem sentido em ambiente local).
 
-O script `run_local.sh` faz tudo: cria venv, instala só as dependências
-necessárias no modo local, aplica `schema.sql` + `seed.sql` em `local.db`
-(via `scripts/init_local_db.py`) e sobe o Flask em `http://localhost:5000`.
-
-Teste rápido depois de subir:
+Teste rápido:
 ```bash
 curl http://localhost:5000/api/health
 ```
 
-**O que funciona neste modo:** cadastro, login, agendamento (com a trava
-de concorrência real via UNIQUE constraint), cancelamento, painel admin,
-upload/download de exames (via multipart direto — sem URL pré-assinada,
-já que não há limite de payload/timeout rodando localmente).
-
-**O que continua pendente neste modo** (mesmos TODOs do modo cloud): envio
-de e-mail (verificação, reset de senha) e verificação de papel admin nas
-rotas. Para testar o código de verificação de e-mail sem SMTP configurado,
-consulte direto o banco:
+Para testar sem SMTP configurado: os e-mails são simulados via log (não quebram o fluxo). Para pegar o código de verificação ou token de reset sem configurar e-mail:
 ```bash
 python3 -c "
 import sqlite3
@@ -66,33 +59,45 @@ print(conn.execute('SELECT email, codigo_verificacao FROM usuarios').fetchall())
 "
 ```
 
-Para resetar o banco local do zero:
+Resetar o banco local do zero:
 ```bash
 rm local.db && python scripts/init_local_db.py
 ```
 
----
+## Setup — produção (Turso + Vercel)
 
-## Setup para produção (Turso + S3 + Vercel)
-
+### 1. Criar e popular o banco Turso
 ```bash
-python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env   # preencha TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, S3_*, SMTP_*
-# no .env, defina DB_MODE=cloud e STORAGE_MODE=s3
+turso db create clinica-pilates
+turso db show clinica-pilates --url
+turso db tokens create clinica-pilates
+```
+No **Turso Studio** (SQL console), cole e rode `schema/schema.sql` completo, depois `schema/seed.sql` — selecione todo o texto (Ctrl+A) antes de clicar em "Run", ou o console pode executar só o último statement.
 
-# aplicar schema no Turso (via turso CLI ou libsql-client)
-turso db shell seu-banco < schema/schema.sql
-turso db shell seu-banco < schema/seed.sql
+### 2. Configurar variáveis de ambiente no Vercel
+| Variável | Valor |
+|---|---|
+| `DB_MODE` | `cloud` |
+| `TURSO_DATABASE_URL` | a URL do banco, com prefixo **`https://`** (não `libsql://` — WebSocket não funciona em serverless) |
+| `TURSO_AUTH_TOKEN` | o token gerado acima |
+| `STORAGE_MODE` | `local` para testar sem bucket (upload de exame não funciona assim em produção — sistema de arquivos é efêmero), ou `s3` com as variáveis `S3_*` preenchidas |
+| `SECRET_KEY` | string aleatória longa |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_USE_TLS` | seu provedor SMTP — Gmail exige Senha de App (não a senha normal da conta), gerada em Conta Google → Segurança → Senhas de app |
+| `TERMO_LGPD_VERSAO_ATUAL` | `v1.0` |
 
-flask --app wsgi run --debug
+### 3. Deploy
+Sem `vercel.json` — o Vercel detecta `api/index.py` (que expõe a app Flask) e empacota o projeto inteiro automaticamente (zero-config). Basta enviar o repositório (via `git push` ou upload) e o deploy acontece sozinho.
+
+### 4. Promover um usuário a admin
+Não existe cadastro de admin pela interface (proposital). Depois que o usuário já tiver se cadastrado e ativado a conta, promova via SQL no Turso Studio:
+```sql
+UPDATE usuarios SET papel = 'admin' WHERE email = 'seu-email@exemplo.com';
 ```
 
-## Deploy (Vercel)
+## Por que estas decisões de arquitetura
 
-O entrypoint serverless está em `api/index.py`, mapeado por `vercel.json`.
-Configure as mesmas variáveis de `.env.example` nas Environment Variables do projeto Vercel.
-
-```bash
-vercel deploy
-```
+- **Turso via `libsql-client` puro (modo cloud) ou `sqlite3` da stdlib (modo local)**, nunca SQLAlchemy: o dialeto SQLAlchemy para libSQL é limitado; SQL explícito é mais previsível em serverless. Os dois modos compartilham a mesma interface em `app/db.py`, então o resto do código não sabe qual está rodando.
+- **Upload de exames fora do Flask em produção**: Vercel Serverless tem limite de payload bem abaixo de 300MB e timeout curto. O navegador sobe o arquivo direto pro bucket S3-compatible via URL pré-assinada; o Flask só grava a referência.
+- **UNIQUE constraint como trava real de concorrência**: a validação de regras de negócio em `rules.py` é uma checagem otimista. Quem impede overbooking de verdade é `UNIQUE(sala_id, data, hora_inicio)` no schema — se dois requests colidirem, o segundo INSERT falha e vira erro tratado, não duplicata.
+- **Token de sessão simples, não JWT/Flask-Login**: resolve o problema real (rotas admin sem checagem nenhuma) sem introduzir dependência nova. O modelo de dados (tabela `sessoes`) comporta migrar para JWT depois, se o projeto crescer.
+- **LGPD**: cadastro exige consentimento explícito, separado de qualquer "aceito os termos" genérico, com data e versão do termo registradas para auditoria. Cadastro manual pelo admin nunca marca esse campo — só o próprio cliente, no primeiro acesso.

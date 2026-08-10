@@ -28,6 +28,7 @@
     </form>
 
     <p style="margin-top:1.2em; font-size:0.85rem;">
+      Não recebeu o código? <a href="#" id="link-reenviar">Reenviar código</a><br>
       <a href="/">Voltar para o login</a>
     </p>
   </div>
@@ -39,6 +40,24 @@ const params = new URLSearchParams(window.location.search);
 if (params.get('email')) {
   document.getElementById('email').value = params.get('email');
 }
+
+document.getElementById('link-reenviar').addEventListener('click', async (e) => {
+  e.preventDefault();
+  limparAlerta('alerta');
+  const email = document.getElementById('email').value;
+  if (!email) {
+    mostrarAlerta('alerta', 'Informe o e-mail antes de reenviar o código.');
+    return;
+  }
+  try {
+    const data = await api('/api/auth/reenviar-codigo', {
+      method: 'POST', body: JSON.stringify({ email }),
+    });
+    mostrarAlerta('alerta', data.mensagem, 'success');
+  } catch (err) {
+    mostrarAlerta('alerta', err.message);
+  }
+});
 
 document.getElementById('form-ativar').addEventListener('submit', async (e) => {
   e.preventDefault();
