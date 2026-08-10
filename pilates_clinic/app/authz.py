@@ -18,12 +18,17 @@ from app.db import one
 
 
 def usuario_da_requisicao():
-    """Retorna {usuario_id, papel, email} se o token do header Authorization
-    for válido e não expirado, ou None caso contrário."""
+    """Retorna {usuario_id, papel, email} se o token for válido e não
+    expirado, ou None caso contrário. Aceita o token via header
+    `Authorization: Bearer <token>` (padrão, usado pelo fetch() do
+    frontend) ou via query string `?token=` (fallback para links <a href>
+    diretos, como o download de exame, que não enviam headers custom)."""
+    token = None
     auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer "):
-        return None
-    token = auth[len("Bearer "):].strip()
+    if auth.startswith("Bearer "):
+        token = auth[len("Bearer "):].strip()
+    if not token:
+        token = request.args.get("token", "").strip()
     if not token:
         return None
 
@@ -66,3 +71,11 @@ def requer_admin(f):
         request.usuario_atual = usuario
         return f(*args, **kwargs)
     return wrapper
+
+
+def exige_dono_ou_admin(usuario_atual: dict, usuario_id_alvo: str) -> bool:
+    """True se usuario_atual pode acessar dados de usuario_id_alvo:
+    é o próprio dono, ou é admin. Usado nas rotas que recebem um usuario_id
+    (no path ou no corpo) para impedir que um cliente logado consulte ou
+    manipule dados de outro cliente só por saber o UUID dele."""
+    return usuario_atual["papel"] == "admin" or usuario_atual["usuario_id"] == usuario_id_alvo

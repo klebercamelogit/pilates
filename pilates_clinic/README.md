@@ -33,9 +33,10 @@ Calculados automaticamente por ano em `app/scheduling/holidays.py`, sem o admin 
 
 ## O que NÃO está implementado ainda (de propósito)
 
-1. **Proteção nas rotas do próprio cliente** — `/api/agendamentos/minhas/<id>`, `/api/prontuarios/<id>` e similares ainda não exigem token (diferente das rotas `/api/admin/*`, que já exigem). O `usuario_id` é um UUID, o que reduz mas não elimina risco de acesso indevido por adivinhação. Se for para produção real, isso deve ser fechado com o mesmo mecanismo de token já usado no admin.
-2. **WhatsApp Business API** — isolado de propósito. Exige conta Business verificada na Meta e aprovação de templates de mensagem antes de qualquer código funcionar. Trate como fase 2, não como parte do MVP.
-3. **Gateway de pagamento** — schema pronto, integração não escrita.
+1. **WhatsApp Business API** — isolado de propósito. Exige conta Business verificada na Meta e aprovação de templates de mensagem antes de qualquer código funcionar. Trate como fase 2, não como parte do MVP.
+2. **Gateway de pagamento** — schema pronto, integração não escrita.
+
+Tudo relacionado a autenticação e isolamento de dados entre clientes está implementado agora — não só rotas admin, mas também `/api/agendamentos/minhas/<id>`, `/api/agendamentos` (criar/cancelar), `/api/prontuarios/<id>` e `/api/exames/*` exigem token e verificam que o usuário só acessa os próprios dados (ou é admin). Testado com dois clientes diferentes tentando acessar dados um do outro — bloqueado com 403 em todos os casos.
 
 ## Setup — 100% local (sem Turso, sem S3, sem SMTP)
 

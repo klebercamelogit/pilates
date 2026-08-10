@@ -332,7 +332,7 @@ async function abrirProntuario(usuarioId) {
       : registro.exames.map(ex => `
           <div class="list-item">
             <span>${ex.nome_original}</span>
-            <a href="/api/exames/${ex.id}/download" class="btn secondary" target="_blank">Baixar</a>
+            <a href="/api/exames/${ex.id}/download?token=${encodeURIComponent(sessao.token)}" class="btn secondary" target="_blank">Baixar</a>
           </div>
         `).join('');
 

@@ -4,11 +4,18 @@ from flask import Blueprint, request, jsonify, current_app, send_file
 
 from app.db import execute, one, new_id
 from app import storage
+from app.authz import requer_login, exige_dono_ou_admin
 
 bp = Blueprint("records", __name__, url_prefix="/api/exames")
 
 
+def _dono_do_prontuario(prontuario_id: str):
+    row = one("SELECT usuario_id FROM prontuarios WHERE id = ?", (prontuario_id,))
+    return row["usuario_id"] if row else None
+
+
 @bp.route("/upload", methods=["POST"])
+@requer_login
 def upload():
     """
     Modo local (STORAGE_MODE=local): multipart/form-data direto, campo 'arquivo'.
@@ -26,6 +33,12 @@ def upload():
     arquivo = request.files.get("arquivo")
     if not prontuario_id or not arquivo:
         return jsonify({"erro": "prontuario_id e arquivo são obrigatórios."}), 400
+
+    dono = _dono_do_prontuario(prontuario_id)
+    if not dono:
+        return jsonify({"erro": "Prontuário não encontrado."}), 404
+    if not exige_dono_ou_admin(request.usuario_atual, dono):
+        return jsonify({"erro": "Acesso negado a este prontuário."}), 403
 
     if not storage.extensao_valida(arquivo.filename, arquivo.content_type):
         return jsonify({"erro": "Extensão ou tipo de arquivo não permitido."}), 400
@@ -51,6 +64,7 @@ def upload():
 
 
 @bp.route("/url-upload", methods=["POST"])
+@requer_login
 def url_upload():
     """Modo cloud: gera URL pré-assinada para o frontend subir o arquivo direto pro bucket."""
     if current_app.config["STORAGE_MODE"] != "s3":
@@ -63,6 +77,12 @@ def url_upload():
     if not (nome_original and content_type and prontuario_id):
         return jsonify({"erro": "nome_original, content_type e prontuario_id obrigatórios."}), 400
 
+    dono = _dono_do_prontuario(prontuario_id)
+    if not dono:
+        return jsonify({"erro": "Prontuário não encontrado."}), 404
+    if not exige_dono_ou_admin(request.usuario_atual, dono):
+        return jsonify({"erro": "Acesso negado a este prontuário."}), 403
+
     if not storage.extensao_valida(nome_original, content_type):
         return jsonify({"erro": "Extensão ou tipo de arquivo não permitido."}), 400
 
@@ -72,10 +92,15 @@ def url_upload():
 
 
 @bp.route("/<exame_id>/download", methods=["GET"])
+@requer_login
 def download(exame_id):
     exame = one("SELECT * FROM exames_arquivos WHERE id = ?", (exame_id,))
     if not exame:
         return jsonify({"erro": "Exame não encontrado."}), 404
+
+    dono = _dono_do_prontuario(exame["prontuario_id"])
+    if not dono or not exige_dono_ou_admin(request.usuario_atual, dono):
+        return jsonify({"erro": "Acesso negado a este exame."}), 403
 
     if current_app.config["STORAGE_MODE"] == "local":
         caminho = storage.caminho_arquivo_local(exame["storage_key"])

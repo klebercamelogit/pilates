@@ -1,11 +1,13 @@
 from flask import Blueprint, request, jsonify
 
 from app.db import execute, one, all_rows, new_id
+from app.authz import requer_login, exige_dono_ou_admin
 
 bp = Blueprint("prontuario", __name__, url_prefix="/api/prontuarios")
 
 
 @bp.route("", methods=["POST"])
+@requer_login
 def criar_ou_atualizar():
     """
     Upsert simples: se o cliente já tem um prontuário, atualiza; senão cria.
@@ -15,6 +17,8 @@ def criar_ou_atualizar():
     usuario_id = dados.get("usuario_id")
     if not usuario_id:
         return jsonify({"erro": "usuario_id é obrigatório."}), 400
+    if not exige_dono_ou_admin(request.usuario_atual, usuario_id):
+        return jsonify({"erro": "Você só pode editar o próprio prontuário."}), 403
 
     existente = one(
         "SELECT id FROM prontuarios WHERE usuario_id = ? ORDER BY criado_em DESC LIMIT 1",
@@ -77,12 +81,10 @@ def montar_registro_completo(usuario_id: str):
 
 
 @bp.route("/<usuario_id>", methods=["GET"])
+@requer_login
 def obter(usuario_id):
-    """
-    Visão do próprio cliente. NOTA: assim como outras rotas do cliente
-    (ex: /api/agendamentos/minhas/<id>), ainda não exige token de sessão —
-    só as rotas /api/admin/* têm essa proteção implementada até agora.
-    usuario_id é um UUID (não sequencial), o que reduz mas não elimina o
-    risco de acesso indevido por adivinhação.
-    """
+    """Visão do próprio cliente (ou admin). Agora exige token e verifica
+    propriedade — antes era acessível por qualquer um que soubesse o UUID."""
+    if not exige_dono_ou_admin(request.usuario_atual, usuario_id):
+        return jsonify({"erro": "Acesso negado."}), 403
     return jsonify(montar_registro_completo(usuario_id))
