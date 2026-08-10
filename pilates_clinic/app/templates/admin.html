@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel administrativo — Clínica de Pilates</title>
+<link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand">Pilates<span class="mark">ADMIN / RAIL 01</span></div>
+    <nav>
+      <a href="#" class="tab-link active" data-tab="dia">Agendamentos do dia</a>
+      <a href="#" class="tab-link" data-tab="cliente">Cadastrar cliente</a>
+      <a href="#" class="tab-link" data-tab="bloqueios">Bloqueios de dia</a>
+      <a href="#" class="tab-link" data-tab="config">Configurações</a>
+    </nav>
+    <div class="spacer"></div>
+    <span id="nome-usuario" style="font-size:0.8rem; color: var(--sand);"></span>
+    <span class="logout" id="btn-logout" style="margin-top:0.6em;">Sair</span>
+  </aside>
+
+  <main class="main">
+    <div id="alerta"></div>
+
+    <!-- ABA: AGENDAMENTOS DO DIA -->
+    <section id="painel-dia">
+      <h1 class="rail">Agendamentos do dia</h1>
+      <label for="filtro-data">Filtrar por data</label>
+      <input type="date" id="filtro-data" style="max-width:220px;">
+      <div id="lista-dia" style="margin-top:1em;"></div>
+    </section>
+
+    <!-- ABA: CADASTRAR CLIENTE -->
+    <section id="painel-cliente" style="display:none;">
+      <h1 class="rail">Cadastrar cliente manualmente</h1>
+      <p>O cliente recebe um e-mail para definir a própria senha e dar o consentimento LGPD — isso nunca é feito por aqui.</p>
+      <form id="form-cliente" style="max-width:420px;">
+        <label for="c-nome">Nome completo</label>
+        <input type="text" id="c-nome" required>
+        <label for="c-cpf">CPF</label>
+        <input type="text" id="c-cpf" maxlength="11" required>
+        <label for="c-email">E-mail</label>
+        <input type="email" id="c-email" required>
+        <label for="c-whatsapp">WhatsApp</label>
+        <input type="text" id="c-whatsapp" required>
+        <button type="submit">Cadastrar cliente</button>
+      </form>
+    </section>
+
+    <!-- ABA: BLOQUEIOS DE DIA -->
+    <section id="painel-bloqueios" style="display:none;">
+      <h1 class="rail">Bloquear um dia</h1>
+      <p>Feriados nacionais/regionais, jogos, ou fechamento por força maior.</p>
+      <form id="form-bloqueio" style="max-width:420px;">
+        <label for="b-data">Data</label>
+        <input type="date" id="b-data" required>
+        <label for="b-tipo">Tipo</label>
+        <select id="b-tipo">
+          <option value="feriado_nacional">Feriado nacional</option>
+          <option value="feriado_regional">Feriado regional</option>
+          <option value="evento">Evento (ex: jogo da Copa)</option>
+          <option value="forca_maior">Força maior (enchente, decreto)</option>
+        </select>
+        <label for="b-motivo">Motivo</label>
+        <input type="text" id="b-motivo" placeholder="ex: Natal" required>
+        <button type="submit">Bloquear dia</button>
+      </form>
+    </section>
+
+    <!-- ABA: CONFIGURAÇÕES -->
+    <section id="painel-config" style="display:none;">
+      <h1 class="rail">Configurações da clínica</h1>
+      <form id="form-config" style="max-width:420px;">
+        <label for="cfg-capacidade">Capacidade máxima por dia</label>
+        <input type="number" id="cfg-capacidade" min="1">
+        <label for="cfg-abertura">Hora de abertura</label>
+        <input type="time" id="cfg-abertura">
+        <label for="cfg-fechamento">Hora de fechamento</label>
+        <input type="time" id="cfg-fechamento">
+        <label for="cfg-duracao">Duração do agendamento (minutos)</label>
+        <input type="number" id="cfg-duracao" min="15" step="15">
+        <button type="submit">Salvar configurações</button>
+      </form>
+    </section>
+  </main>
+</div>
+
+<script src="/static/js/api.js"></script>
+<script>
+const sessao = exigirSessao('admin');
+document.getElementById('nome-usuario').textContent = sessao ? sessao.email : '';
+
+document.getElementById('btn-logout').addEventListener('click', () => {
+  limparSessao();
+  window.location.href = '/';
+});
+
+document.querySelectorAll('.tab-link').forEach(link => {
+  link.addEventListener('click', (e) => {
+    e.preventDefault();
+    document.querySelectorAll('.tab-link').forEach(l => l.classList.remove('active'));
+    link.classList.add('active');
+    const tab = link.dataset.tab;
+    ['dia','cliente','bloqueios','config'].forEach(t => {
+      document.getElementById(`painel-${t}`).style.display = t === tab ? 'block' : 'none';
+    });
+    if (tab === 'config') carregarConfiguracoes();
+  });
+});
+
+// --- Agendamentos do dia ---
+const filtroData = document.getElementById('filtro-data');
+filtroData.valueAsDate = new Date();
+filtroData.addEventListener('change', carregarAgendamentosDia);
+
+async function carregarAgendamentosDia() {
+  const lista = document.getElementById('lista-dia');
+  lista.innerHTML = '<p>Carregando...</p>';
+  const data = filtroData.value;
+  const agendamentos = await api(`/api/admin/agendamentos?data=${data}`);
+
+  if (agendamentos.length === 0) {
+    lista.innerHTML = '<div class="empty-state">Nenhum agendamento para esse dia.</div>';
+    return;
+  }
+
+  lista.innerHTML = agendamentos.map(a => `
+    <div class="list-item ${a.status === 'cancelado' ? 'cancelado' : ''}">
+      <div>
+        <strong>${a.hora_inicio} — ${a.cliente_nome}</strong><br>
+        <span style="font-size:0.85rem; color:var(--ink-soft);">${a.profissional_nome} · ${a.sala_nome}</span>
+      </div>
+      <span class="badge ${a.status === 'cancelado' ? 'danger' : ''}">${a.status}</span>
+    </div>
+  `).join('');
+}
+
+// --- Cadastro manual de cliente ---
+document.getElementById('form-cliente').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  limparAlerta('alerta');
+  try {
+    await api('/api/admin/clientes', {
+      method: 'POST',
+      body: JSON.stringify({
+        nome: document.getElementById('c-nome').value,
+        cpf: document.getElementById('c-cpf').value,
+        email: document.getElementById('c-email').value,
+        whatsapp: document.getElementById('c-whatsapp').value,
+      }),
+    });
+    mostrarAlerta('alerta', 'Cliente cadastrado! E-mail de primeiro acesso enviado.', 'success');
+    document.getElementById('form-cliente').reset();
+  } catch (err) {
+    mostrarAlerta('alerta', err.message);
+  }
+});
+
+// --- Bloqueio de dia ---
+document.getElementById('form-bloqueio').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  limparAlerta('alerta');
+  try {
+    await api('/api/admin/bloqueios-dia', {
+      method: 'POST',
+      body: JSON.stringify({
+        data: document.getElementById('b-data').value,
+        tipo: document.getElementById('b-tipo').value,
+        motivo: document.getElementById('b-motivo').value,
+      }),
+    });
+    mostrarAlerta('alerta', 'Dia bloqueado com sucesso.', 'success');
+    document.getElementById('form-bloqueio').reset();
+  } catch (err) {
+    mostrarAlerta('alerta', err.message);
+  }
+});
+
+// --- Configurações ---
+async function carregarConfiguracoes() {
+  try {
+    const cfg = await api('/api/admin/configuracoes');
+    document.getElementById('cfg-capacidade').value = cfg.capacidade_max_dia;
+    document.getElementById('cfg-abertura').value = cfg.hora_abertura;
+    document.getElementById('cfg-fechamento').value = cfg.hora_fechamento;
+    document.getElementById('cfg-duracao').value = cfg.duracao_padrao_min;
+  } catch (err) {
+    mostrarAlerta('alerta', err.message);
+  }
+}
+
+document.getElementById('form-config').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  limparAlerta('alerta');
+  try {
+    await api('/api/admin/configuracoes', {
+      method: 'PUT',
+      body: JSON.stringify({
+        capacidade_max_dia: parseInt(document.getElementById('cfg-capacidade').value, 10),
+        hora_abertura: document.getElementById('cfg-abertura').value,
+        hora_fechamento: document.getElementById('cfg-fechamento').value,
+        duracao_padrao_min: parseInt(document.getElementById('cfg-duracao').value, 10),
+      }),
+    });
+    mostrarAlerta('alerta', 'Configurações salvas.', 'success');
+  } catch (err) {
+    mostrarAlerta('alerta', err.message);
+  }
+});
+
+carregarAgendamentosDia();
+</script>
+</body>
+</html>

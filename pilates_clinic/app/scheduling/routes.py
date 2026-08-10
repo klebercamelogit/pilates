@@ -1,0 +1,76 @@
+from flask import Blueprint, request, jsonify
+
+from app.scheduling.rules import (
+    criar_agendamento, cancelar_agendamento, listar_dias_disponiveis, IndisponivelError,
+    carregar_configuracoes,
+)
+from app.db import all_rows, one
+
+bp = Blueprint("scheduling", __name__, url_prefix="/api/agendamentos")
+
+
+@bp.route("/opcoes", methods=["GET"])
+def opcoes():
+    """Salas, profissionais e configurações — o frontend usa isso para montar
+    o seletor de horários (a API não expõe ocupação por horário individual;
+    conflitos de horário são resolvidos no momento da criação, via a UNIQUE
+    constraint do banco — ver app/scheduling/rules.py)."""
+    cfg = carregar_configuracoes()
+    return jsonify({
+        "salas": all_rows("SELECT id, nome FROM salas WHERE ativa = 1"),
+        "profissionais": all_rows("SELECT id, nome, duracao_padrao_min FROM profissionais WHERE ativo = 1"),
+        "hora_abertura": cfg["hora_abertura"],
+        "hora_fechamento": cfg["hora_fechamento"],
+        "duracao_padrao_min": cfg["duracao_padrao_min"],
+    })
+
+
+@bp.route("/minhas/<usuario_id>", methods=["GET"])
+def minhas(usuario_id):
+    """Histórico/agendamentos do cliente logado."""
+    query = """
+        SELECT a.*, p.nome as profissional_nome, s.nome as sala_nome
+        FROM agendamentos a
+        JOIN profissionais p ON p.id = a.profissional_id
+        JOIN salas s ON s.id = a.sala_id
+        WHERE a.usuario_id = ?
+        ORDER BY a.data DESC, a.hora_inicio DESC
+    """
+    return jsonify(all_rows(query, (usuario_id,)))
+
+
+@bp.route("/calendario/<int:ano>/<int:mes>", methods=["GET"])
+def calendario(ano, mes):
+    return jsonify(listar_dias_disponiveis(ano, mes))
+
+
+@bp.route("", methods=["POST"])
+def criar():
+    dados = request.get_json(force=True)
+    obrigatorios = ["usuario_id", "profissional_id", "sala_id", "data", "hora_inicio", "hora_fim"]
+    faltando = [c for c in obrigatorios if not dados.get(c)]
+    if faltando:
+        return jsonify({"erro": f"Campos obrigatórios ausentes: {faltando}"}), 400
+
+    try:
+        agendamento_id = criar_agendamento(
+            dados["usuario_id"], dados["profissional_id"], dados["sala_id"],
+            dados["data"], dados["hora_inicio"], dados["hora_fim"],
+        )
+    except IndisponivelError as e:
+        return jsonify({"erro": str(e)}), 409
+
+    return jsonify({"mensagem": "Agendamento confirmado.", "agendamento_id": agendamento_id}), 201
+
+
+@bp.route("/<agendamento_id>/cancelar", methods=["POST"])
+def cancelar(agendamento_id):
+    dados = request.get_json(force=True)
+    usuario_id = dados.get("usuario_id")
+    if not usuario_id:
+        return jsonify({"erro": "usuario_id obrigatório."}), 400
+    try:
+        cancelar_agendamento(agendamento_id, usuario_id)
+    except ValueError as e:
+        return jsonify({"erro": str(e)}), 404
+    return jsonify({"mensagem": "Agendamento cancelado."})

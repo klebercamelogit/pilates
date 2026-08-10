@@ -1,0 +1,85 @@
+import os
+
+from flask import Blueprint, request, jsonify, current_app, send_file
+
+from app.db import execute, one, new_id
+from app import storage
+
+bp = Blueprint("records", __name__, url_prefix="/api/exames")
+
+
+@bp.route("/upload", methods=["POST"])
+def upload():
+    """
+    Modo local (STORAGE_MODE=local): multipart/form-data direto, campo 'arquivo'.
+    Modo cloud (STORAGE_MODE=s3): use GET /url-upload abaixo para pedir a URL
+    pré-assinada e faça o PUT direto pro bucket a partir do navegador —
+    NÃO chame esta rota em produção.
+    """
+    if current_app.config["STORAGE_MODE"] != "local":
+        return jsonify({
+            "erro": "Upload multipart direto só é permitido em STORAGE_MODE=local. "
+                    "Em produção, peça uma URL pré-assinada em /api/exames/url-upload."
+        }), 400
+
+    prontuario_id = request.form.get("prontuario_id")
+    arquivo = request.files.get("arquivo")
+    if not prontuario_id or not arquivo:
+        return jsonify({"erro": "prontuario_id e arquivo são obrigatórios."}), 400
+
+    if not storage.extensao_valida(arquivo.filename, arquivo.content_type):
+        return jsonify({"erro": "Extensão ou tipo de arquivo não permitido."}), 400
+
+    storage_key = storage.montar_storage_key(prontuario_id, arquivo.filename)
+    storage.salvar_arquivo_local(storage_key, arquivo)
+
+    tamanho = os.path.getsize(storage.caminho_arquivo_local(storage_key))
+    if tamanho > current_app.config["MAX_UPLOAD_BYTES"]:
+        os.remove(storage.caminho_arquivo_local(storage_key))
+        return jsonify({"erro": "Arquivo excede 300MB."}), 413
+
+    exame_id = new_id()
+    execute(
+        """
+        INSERT INTO exames_arquivos
+            (id, prontuario_id, nome_original, storage_key, content_type, tamanho_bytes)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (exame_id, prontuario_id, arquivo.filename, storage_key, arquivo.content_type, tamanho),
+    )
+    return jsonify({"mensagem": "Exame enviado.", "exame_id": exame_id}), 201
+
+
+@bp.route("/url-upload", methods=["POST"])
+def url_upload():
+    """Modo cloud: gera URL pré-assinada para o frontend subir o arquivo direto pro bucket."""
+    if current_app.config["STORAGE_MODE"] != "s3":
+        return jsonify({"erro": "Esta rota é só para STORAGE_MODE=s3."}), 400
+
+    dados = request.get_json(force=True)
+    nome_original = dados.get("nome_original")
+    content_type = dados.get("content_type")
+    prontuario_id = dados.get("prontuario_id")
+    if not (nome_original and content_type and prontuario_id):
+        return jsonify({"erro": "nome_original, content_type e prontuario_id obrigatórios."}), 400
+
+    if not storage.extensao_valida(nome_original, content_type):
+        return jsonify({"erro": "Extensão ou tipo de arquivo não permitido."}), 400
+
+    storage_key = storage.montar_storage_key(prontuario_id, nome_original)
+    url = storage.gerar_url_upload(storage_key, content_type)
+    return jsonify({"url_upload": url, "storage_key": storage_key})
+
+
+@bp.route("/<exame_id>/download", methods=["GET"])
+def download(exame_id):
+    exame = one("SELECT * FROM exames_arquivos WHERE id = ?", (exame_id,))
+    if not exame:
+        return jsonify({"erro": "Exame não encontrado."}), 404
+
+    if current_app.config["STORAGE_MODE"] == "local":
+        caminho = storage.caminho_arquivo_local(exame["storage_key"])
+        return send_file(caminho, download_name=exame["nome_original"], as_attachment=True)
+
+    url = storage.gerar_url_leitura(exame["storage_key"])
+    return jsonify({"url_download": url})
