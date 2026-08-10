@@ -37,7 +37,7 @@
     <!-- ABA: PRONTUÁRIO DO PACIENTE -->
     <section id="painel-prontuario" style="display:none;">
       <h1 class="rail">Prontuário do paciente</h1>
-      <p>Busque por nome, CPF ou e-mail para abrir o histórico e os exames do paciente.</p>
+      <p>Busque por nome ou e-mail para abrir o histórico e os exames do paciente.</p>
       <input type="text" id="busca-cliente" placeholder="Buscar paciente..." style="max-width:360px;">
       <div id="resultado-busca-cliente" style="margin-top:0.6em;"></div>
 
@@ -65,8 +65,6 @@
       <form id="form-cliente" style="max-width:420px;">
         <label for="c-nome">Nome completo</label>
         <input type="text" id="c-nome" required>
-        <label for="c-cpf">CPF</label>
-        <input type="text" id="c-cpf" maxlength="11" required>
         <label for="c-email">E-mail</label>
         <input type="email" id="c-email" required>
         <label for="c-whatsapp">WhatsApp</label>
@@ -300,7 +298,7 @@ async function buscarClientes(termo) {
   }
   container.innerHTML = clientes.map(c => `
     <div class="list-item" style="cursor:pointer;" data-id="${c.id}">
-      <div><strong>${c.nome}</strong><br><span style="font-size:0.8rem; color:var(--ink-soft);">${c.email} · CPF ${c.cpf}</span></div>
+      <div><strong>${c.nome}</strong><br><span style="font-size:0.8rem; color:var(--ink-soft);">${c.email}</span></div>
     </div>
   `).join('');
   container.querySelectorAll('.list-item').forEach(el => {
@@ -315,7 +313,7 @@ async function abrirProntuario(usuarioId) {
     document.getElementById('detalhe-prontuario').style.display = 'block';
     document.getElementById('prontuario-nome-cliente').textContent = registro.cliente.nome;
     document.getElementById('prontuario-contato').textContent =
-      `${registro.cliente.email} · ${registro.cliente.whatsapp} · CPF ${registro.cliente.cpf}`;
+      `${registro.cliente.email} · ${registro.cliente.whatsapp}`;
 
     if (registro.prontuario) {
       document.getElementById('prontuario-comorbidades').textContent =
@@ -359,7 +357,6 @@ document.getElementById('form-cliente').addEventListener('submit', async (e) => 
       method: 'POST',
       body: JSON.stringify({
         nome: document.getElementById('c-nome').value,
-        cpf: document.getElementById('c-cpf').value,
         email: document.getElementById('c-email').value,
         whatsapp: document.getElementById('c-whatsapp').value,
       }),

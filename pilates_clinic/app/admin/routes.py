@@ -19,20 +19,20 @@ def listar_clientes():
     termo = request.args.get("busca", "").strip()
     if termo:
         return jsonify(all_rows(
-            "SELECT id, nome, cpf, email FROM usuarios "
-            "WHERE papel = 'cliente' AND (nome LIKE ? OR cpf LIKE ? OR email LIKE ?) "
+            "SELECT id, nome, email FROM usuarios "
+            "WHERE papel = 'cliente' AND (nome LIKE ? OR email LIKE ?) "
             "ORDER BY nome LIMIT 30",
-            (f"%{termo}%", f"%{termo}%", f"%{termo}%"),
+            (f"%{termo}%", f"%{termo}%"),
         ))
     return jsonify(all_rows(
-        "SELECT id, nome, cpf, email FROM usuarios WHERE papel = 'cliente' ORDER BY nome LIMIT 50"
+        "SELECT id, nome, email FROM usuarios WHERE papel = 'cliente' ORDER BY nome LIMIT 50"
     ))
 
 
 @bp.route("/clientes/<usuario_id>/prontuario", methods=["GET"])
 @requer_admin
 def prontuario_paciente(usuario_id):
-    cliente = one("SELECT id, nome, cpf, email, whatsapp FROM usuarios WHERE id = ?", (usuario_id,))
+    cliente = one("SELECT id, nome, email, whatsapp FROM usuarios WHERE id = ?", (usuario_id,))
     if not cliente:
         return jsonify({"erro": "Cliente não encontrado."}), 404
     registro = montar_registro_completo(usuario_id)
@@ -60,16 +60,19 @@ def cadastrar_cliente_manual():
     nem reaproveitada.
     """
     dados = request.get_json(force=True)
-    obrigatorios = ["nome", "cpf", "email", "whatsapp"]
+    obrigatorios = ["nome", "email", "whatsapp"]
     faltando = [c for c in obrigatorios if not dados.get(c)]
     if faltando:
         return jsonify({"erro": f"Campos obrigatórios ausentes: {faltando}"}), 400
 
-    if one("SELECT id FROM usuarios WHERE cpf = ?", (dados["cpf"],)):
-        return jsonify({"erro": "CPF já cadastrado."}), 409
+    if one("SELECT id FROM usuarios WHERE email = ?", (dados["email"],)):
+        return jsonify({"erro": "E-mail já cadastrado."}), 409
 
     usuario_id = new_id()
     token_primeiro_acesso = secrets.token_urlsafe(32)
+    # Ver nota em app/auth/routes.py: `cpf` continua NOT NULL UNIQUE no
+    # schema para não exigir migração em produção, mas não é mais coletado.
+    cpf_interno = f"sem-cpf-{new_id()}"
 
     execute(
         """
@@ -78,7 +81,7 @@ def cadastrar_cliente_manual():
             token_reset_senha, consentimento_lgpd_aceito
         ) VALUES (?, ?, ?, ?, NULL, ?, 'cliente', 0, ?, 0)
         """,
-        (usuario_id, dados["nome"], dados["cpf"], dados["email"], dados["whatsapp"],
+        (usuario_id, dados["nome"], cpf_interno, dados["email"], dados["whatsapp"],
          token_primeiro_acesso),
     )
     # Consentimento LGPD só pode ser dado pelo próprio cliente em
@@ -87,6 +90,7 @@ def cadastrar_cliente_manual():
 
     return jsonify({"mensagem": "Cliente cadastrado. E-mail de primeiro acesso enviado.",
                      "usuario_id": usuario_id}), 201
+
 
 
 @bp.route("/agendamentos", methods=["GET"])

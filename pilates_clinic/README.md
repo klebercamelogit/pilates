@@ -25,6 +25,12 @@ Backend Flask + frontend em templates HTML/JS, banco Turso (libSQL), deploy em V
 - Frontend responsivo (mobile e desktop) para todas as telas
 - Estrutura de pagamento (tabela `pagamentos`) pronta para plugar gateway depois — integração ainda não escrita
 
+## CPF removido do fluxo de usuário
+
+CPF não é mais coletado em nenhuma tela (cadastro público nem cadastro manual pelo admin). A recuperação de senha, que antes usava CPF como identificador (CPF → e-mail ofuscado → confirmação), agora é direta por e-mail: o cliente informa o e-mail e recebe um link/token de redefinição, sem etapa intermediária.
+
+**Detalhe técnico:** a coluna `cpf` continua existindo no schema como `NOT NULL UNIQUE` — de propósito, para não exigir mais uma migração no banco em produção. O backend preenche automaticamente com um valor interno opaco (`sem-cpf-<uuid>`) que nunca é exibido nem usado para nada, só satisfaz a constraint do banco. Verificação de duplicata no cadastro passou a ser por e-mail, não mais por CPF.
+
 ## Feriados nacionais — o que está incluído
 
 Calculados automaticamente por ano em `app/scheduling/holidays.py`, sem o admin precisar cadastrar nada: os 8 feriados civis de data fixa (Confraternização Universal, Tiradentes, Dia do Trabalho, Independência, Nossa Senhora Aparecida, Finados, Proclamação da República, Natal) mais a Sexta-feira Santa (móvel, calculada a partir da Páscoa).

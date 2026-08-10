@@ -13,43 +13,18 @@
       <h1>Recuperar senha</h1>
       <span class="mark">STUDIO / RAIL 01</span>
     </div>
+    <p>Informe seu e-mail. Se houver uma conta ativa, enviaremos um link para redefinir a senha.</p>
+
     <div id="alerta"></div>
 
-    <!-- Etapa 1: CPF -->
-    <div id="etapa-1">
-      <p>Informe seu CPF para iniciar a recuperação.</p>
-      <form id="form-cpf">
-        <label for="cpf">CPF</label>
-        <input type="text" id="cpf" maxlength="11" required>
-        <button type="submit" style="width:100%">Continuar</button>
-      </form>
-    </div>
-
-    <!-- Etapa 2: confirmar e-mail ofuscado -->
-    <div id="etapa-2" style="display:none;">
-      <p>Confirme o e-mail cadastrado: <strong id="email-ofuscado"></strong></p>
-      <form id="form-confirmar-email">
-        <label for="email-completo">Digite o e-mail completo</label>
-        <input type="email" id="email-completo" required>
-        <button type="submit" style="width:100%">Confirmar</button>
-      </form>
-    </div>
-
-    <!-- Etapa 3: nova senha -->
-    <div id="etapa-3" style="display:none;">
-      <p>Enviamos um link/token de redefinição para seu e-mail. Cole o token recebido e defina a nova senha.</p>
-      <form id="form-nova-senha">
-        <label for="token">Token recebido por e-mail</label>
-        <input type="text" id="token" required>
-        <label for="nova_senha">Nova senha</label>
-        <input type="password" id="nova_senha" required>
-        <label for="repetir_senha">Repetir nova senha</label>
-        <input type="password" id="repetir_senha" required>
-        <button type="submit" style="width:100%">Redefinir senha</button>
-      </form>
-    </div>
+    <form id="form-email">
+      <label for="email">E-mail</label>
+      <input type="email" id="email" required>
+      <button type="submit" style="width:100%">Enviar link de redefinição</button>
+    </form>
 
     <p style="margin-top:1.2em; font-size:0.85rem;">
+      Já tem um token em mãos? <a href="/redefinir-senha">Redefinir senha</a><br>
       <a href="/">Voltar para o login</a>
     </p>
   </div>
@@ -57,63 +32,15 @@
 
 <script src="/static/js/api.js"></script>
 <script>
-let cpfAtual = '';
-
-document.getElementById('form-cpf').addEventListener('submit', async (e) => {
+document.getElementById('form-email').addEventListener('submit', async (e) => {
   e.preventDefault();
   limparAlerta('alerta');
-  cpfAtual = document.getElementById('cpf').value;
   try {
     const data = await api('/api/auth/esqueci-senha/iniciar', {
-      method: 'POST', body: JSON.stringify({ cpf: cpfAtual }),
-    });
-    if (data.email_ofuscado) {
-      document.getElementById('email-ofuscado').textContent = data.email_ofuscado;
-      document.getElementById('etapa-1').style.display = 'none';
-      document.getElementById('etapa-2').style.display = 'block';
-    } else {
-      mostrarAlerta('alerta', 'Se o CPF existir na base, um e-mail ofuscado seria mostrado aqui.');
-    }
-  } catch (err) {
-    mostrarAlerta('alerta', err.message);
-  }
-});
-
-document.getElementById('form-confirmar-email').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  limparAlerta('alerta');
-  try {
-    await api('/api/auth/esqueci-senha/confirmar', {
       method: 'POST',
-      body: JSON.stringify({ cpf: cpfAtual, email: document.getElementById('email-completo').value }),
+      body: JSON.stringify({ email: document.getElementById('email').value }),
     });
-    document.getElementById('etapa-2').style.display = 'none';
-    document.getElementById('etapa-3').style.display = 'block';
-    mostrarAlerta('alerta', 'Token enviado ao seu e-mail.', 'success');
-  } catch (err) {
-    mostrarAlerta('alerta', err.message);
-  }
-});
-
-document.getElementById('form-nova-senha').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  limparAlerta('alerta');
-  const nova = document.getElementById('nova_senha').value;
-  const repetir = document.getElementById('repetir_senha').value;
-  if (nova !== repetir) {
-    mostrarAlerta('alerta', 'As senhas não conferem.');
-    return;
-  }
-  try {
-    await api('/api/auth/esqueci-senha/redefinir', {
-      method: 'POST',
-      body: JSON.stringify({
-        token: document.getElementById('token').value,
-        nova_senha: nova, repetir_senha: repetir,
-      }),
-    });
-    mostrarAlerta('alerta', 'Senha redefinida! Redirecionando para o login...', 'success');
-    setTimeout(() => window.location.href = '/', 1200);
+    mostrarAlerta('alerta', data.mensagem, 'success');
   } catch (err) {
     mostrarAlerta('alerta', err.message);
   }
