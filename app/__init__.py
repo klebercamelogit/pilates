@@ -14,11 +14,13 @@ def create_app(config_class=Config):
     from app.scheduling.routes import bp as scheduling_bp
     from app.admin.routes import bp as admin_bp
     from app.records.routes import bp as records_bp
+    from app.views import bp as views_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(scheduling_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(records_bp)
+    app.register_blueprint(views_bp)
 
     @app.route("/api/health")
     def health():

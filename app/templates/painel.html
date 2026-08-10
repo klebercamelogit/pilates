@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meu painel — Clínica de Pilates</title>
+<link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand">Pilates<span class="mark">STUDIO / RAIL 01</span></div>
+    <nav>
+      <a href="#" class="tab-link active" data-tab="agendar">Agendar sessão</a>
+      <a href="#" class="tab-link" data-tab="historico">Meus agendamentos</a>
+    </nav>
+    <div class="spacer"></div>
+    <span id="nome-usuario" style="font-size:0.8rem; color: var(--sand);"></span>
+    <span class="logout" id="btn-logout" style="margin-top:0.6em;">Sair</span>
+  </aside>
+
+  <main class="main">
+    <div id="alerta"></div>
+
+    <!-- ABA: AGENDAR -->
+    <section id="painel-agendar">
+      <h1 class="rail">Agendar sessão</h1>
+      <p>Escolha um dia disponível no calendário e o horário desejado.</p>
+
+      <div class="grid-2" style="align-items:start;">
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.8em;">
+            <button type="button" class="secondary" id="mes-anterior">‹</button>
+            <h3 id="mes-atual-label"></h3>
+            <button type="button" class="secondary" id="mes-seguinte">›</button>
+          </div>
+          <div class="calendar-grid" id="calendario"></div>
+        </div>
+
+        <div class="card" id="form-horario-card" style="display:none;">
+          <h3 class="rail">Horário — <span id="data-selecionada"></span></h3>
+          <form id="form-agendamento">
+            <label for="sala">Sala</label>
+            <select id="sala" required></select>
+
+            <label for="profissional">Profissional</label>
+            <select id="profissional" required></select>
+
+            <label for="horario">Horário</label>
+            <select id="horario" required></select>
+
+            <button type="submit" style="width:100%">Confirmar agendamento</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ABA: HISTÓRICO -->
+    <section id="painel-historico" style="display:none;">
+      <h1 class="rail">Meus agendamentos</h1>
+      <div id="lista-agendamentos"></div>
+    </section>
+  </main>
+</div>
+
+<script src="/static/js/api.js"></script>
+<script>
+const sessao = exigirSessao('cliente');
+document.getElementById('nome-usuario').textContent = sessao ? sessao.email : '';
+
+document.getElementById('btn-logout').addEventListener('click', () => {
+  limparSessao();
+  window.location.href = '/';
+});
+
+// --- Navegação entre abas ---
+document.querySelectorAll('.tab-link').forEach(link => {
+  link.addEventListener('click', (e) => {
+    e.preventDefault();
+    document.querySelectorAll('.tab-link').forEach(l => l.classList.remove('active'));
+    link.classList.add('active');
+    const tab = link.dataset.tab;
+    document.getElementById('painel-agendar').style.display = tab === 'agendar' ? 'block' : 'none';
+    document.getElementById('painel-historico').style.display = tab === 'historico' ? 'block' : 'none';
+    if (tab === 'historico') carregarHistorico();
+  });
+});
+
+// --- Calendário ---
+let anoAtual, mesAtual;
+const hoje = new Date();
+anoAtual = hoje.getFullYear();
+mesAtual = hoje.getMonth() + 1;
+
+const NOMES_MES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+async function carregarCalendario() {
+  document.getElementById('mes-atual-label').textContent = `${NOMES_MES[mesAtual - 1]} ${anoAtual}`;
+  const dias = await api(`/api/agendamentos/calendario/${anoAtual}/${mesAtual}`);
+  const grid = document.getElementById('calendario');
+  grid.innerHTML = '';
+
+  ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'weekday';
+    el.textContent = d;
+    grid.appendChild(el);
+  });
+
+  const primeiroDia = new Date(anoAtual, mesAtual - 1, 1);
+  const offset = primeiroDia.getDay(); // 0=domingo
+  for (let i = 0; i < offset; i++) {
+    const el = document.createElement('div');
+    el.className = 'day-cell empty';
+    grid.appendChild(el);
+  }
+
+  Object.entries(dias).forEach(([dataStr, disponivel]) => {
+    const dia = parseInt(dataStr.split('-')[2], 10);
+    const el = document.createElement('div');
+    el.className = `day-cell ${disponivel ? 'disponivel' : 'indisponivel'}`;
+    el.textContent = dia;
+    if (disponivel) {
+      el.addEventListener('click', () => selecionarDia(dataStr, el));
+    }
+    grid.appendChild(el);
+  });
+}
+
+document.getElementById('mes-anterior').addEventListener('click', () => {
+  mesAtual--; if (mesAtual < 1) { mesAtual = 12; anoAtual--; }
+  carregarCalendario();
+});
+document.getElementById('mes-seguinte').addEventListener('click', () => {
+  mesAtual++; if (mesAtual > 12) { mesAtual = 1; anoAtual++; }
+  carregarCalendario();
+});
+
+let dataSelecionada = null;
+let opcoesClinica = null;
+
+async function selecionarDia(dataStr, el) {
+  document.querySelectorAll('.day-cell.selecionado').forEach(c => c.classList.remove('selecionado'));
+  el.classList.add('selecionado');
+  dataSelecionada = dataStr;
+  document.getElementById('data-selecionada').textContent = dataStr.split('-').reverse().join('/');
+  document.getElementById('form-horario-card').style.display = 'block';
+
+  if (!opcoesClinica) {
+    opcoesClinica = await api('/api/agendamentos/opcoes');
+    const selSala = document.getElementById('sala');
+    const selProf = document.getElementById('profissional');
+    selSala.innerHTML = opcoesClinica.salas.map(s => `<option value="${s.id}">${s.nome}</option>`).join('');
+    selProf.innerHTML = opcoesClinica.profissionais.map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
+  }
+
+  const selHorario = document.getElementById('horario');
+  selHorario.innerHTML = '';
+  const [horaAberturaH, horaAberturaM] = opcoesClinica.hora_abertura.split(':').map(Number);
+  const [horaFechamentoH] = opcoesClinica.hora_fechamento.split(':').map(Number);
+  const duracao = opcoesClinica.duracao_padrao_min;
+
+  let minutos = horaAberturaH * 60 + horaAberturaM;
+  const fimMinutos = horaFechamentoH * 60;
+  while (minutos + duracao <= fimMinutos) {
+    const h = String(Math.floor(minutos / 60)).padStart(2, '0');
+    const m = String(minutos % 60).padStart(2, '0');
+    const opt = document.createElement('option');
+    opt.value = `${h}:${m}`;
+    opt.textContent = `${h}:${m}`;
+    selHorario.appendChild(opt);
+    minutos += duracao;
+  }
+}
+
+document.getElementById('form-agendamento').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  limparAlerta('alerta');
+  const horaInicio = document.getElementById('horario').value;
+  const duracao = opcoesClinica.duracao_padrao_min;
+  const [h, m] = horaInicio.split(':').map(Number);
+  const fimMin = h * 60 + m + duracao;
+  const horaFim = `${String(Math.floor(fimMin/60)).padStart(2,'0')}:${String(fimMin%60).padStart(2,'0')}`;
+
+  try {
+    await api('/api/agendamentos', {
+      method: 'POST',
+      body: JSON.stringify({
+        usuario_id: sessao.usuario_id,
+        profissional_id: document.getElementById('profissional').value,
+        sala_id: document.getElementById('sala').value,
+        data: dataSelecionada,
+        hora_inicio: horaInicio,
+        hora_fim: horaFim,
+      }),
+    });
+    mostrarAlerta('alerta', 'Agendamento confirmado!', 'success');
+    document.getElementById('form-horario-card').style.display = 'none';
+    carregarCalendario();
+  } catch (err) {
+    mostrarAlerta('alerta', err.message);
+  }
+});
+
+// --- Histórico ---
+async function carregarHistorico() {
+  const lista = document.getElementById('lista-agendamentos');
+  lista.innerHTML = '<p>Carregando...</p>';
+  const agendamentos = await api(`/api/agendamentos/minhas/${sessao.usuario_id}`);
+
+  if (agendamentos.length === 0) {
+    lista.innerHTML = '<div class="empty-state">Você ainda não tem nenhum agendamento. Que tal marcar sua primeira sessão?</div>';
+    return;
+  }
+
+  lista.innerHTML = agendamentos.map(a => `
+    <div class="list-item ${a.status === 'cancelado' ? 'cancelado' : ''}">
+      <div>
+        <strong>${a.data.split('-').reverse().join('/')} às ${a.hora_inicio}</strong><br>
+        <span style="font-size:0.85rem; color:var(--ink-soft);">${a.profissional_nome} · ${a.sala_nome}</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:0.8em;">
+        <span class="badge ${a.status === 'cancelado' ? 'danger' : ''}">${a.status}</span>
+        ${a.status === 'confirmado' ? `<button type="button" class="secondary btn-cancelar" data-id="${a.id}">Cancelar</button>` : ''}
+      </div>
+    </div>
+  `).join('');
+
+  document.querySelectorAll('.btn-cancelar').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Cancelar este agendamento?')) return;
+      try {
+        await api(`/api/agendamentos/${btn.dataset.id}/cancelar`, {
+          method: 'POST',
+          body: JSON.stringify({ usuario_id: sessao.usuario_id }),
+        });
+        carregarHistorico();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  });
+}
+
+carregarCalendario();
+</script>
+</body>
+</html>

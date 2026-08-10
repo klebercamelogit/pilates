@@ -4,33 +4,12 @@ Backend Flask, banco Turso (libSQL), deploy em Vercel Serverless Functions.
 
 ## O que já está implementado
 
-- Cadastro de cliente com código de verificação **enviado por e-mail via SMTP** (ver `app/notifications.py`). Se `SMTP_HOST` estiver vazio, o envio é simulado via log — não quebra o cadastro.
-- Recuperação de senha por CPF + confirmação de e-mail ofuscado + link de reset **enviado por e-mail**.
-- Primeiro acesso (`POST /api/auth/primeiro-acesso`): cliente cadastrado manualmente pelo admin recebe e-mail com token, define a própria senha e dá o consentimento LGPD — o admin nunca marca isso em nome dele.
-- Prontuário e exames: schema pronto, upload via URL pré-assinada (`app/storage.py`) em produção, ou multipart direto em modo local.
+- Cadastro de cliente com código de verificação por e-mail (envio de e-mail é TODO — ver `app/auth/routes.py`).
+- Recuperação de senha por CPF + confirmação de e-mail ofuscado + link de reset.
+- Prontuário e exames: schema pronto, upload via URL pré-assinada (`app/storage.py`), **não** via Flask.
 - Agendamento com validação de regras (feriados, dia da semana, expediente, janelas indisponíveis, capacidade) e proteção contra concorrência via UNIQUE constraint no banco.
 - Painel admin: cadastro manual de cliente (sem expor senha), configurações, bloqueios de dia, janelas indisponíveis, listagem de agendamentos.
 - Estrutura de pagamento (tabela `pagamentos`) pronta para plugar gateway depois.
-
-### Configurando o envio de e-mail (SMTP)
-
-Preencha no `.env` (ou nas variáveis de ambiente do Vercel):
-
-```
-SMTP_HOST=smtp.gmail.com      # ou smtp-relay.brevo.com, smtp.sendgrid.net, etc.
-SMTP_PORT=587
-SMTP_USER=seu-usuario
-SMTP_PASSWORD=sua-senha-de-app
-SMTP_FROM=no-reply@suaclinica.com
-SMTP_USE_TLS=true             # STARTTLS na porta 587 (padrão)
-SMTP_USE_SSL=false            # true só se usar porta 465 (SSL implícito)
-```
-
-**Gmail exige "Senha de app"**, não a senha normal da conta — a verificação em 2 etapas bloqueia login direto de aplicação externa. Gere em: Conta Google → Segurança → Senhas de app.
-
-Alternativas mais simples para testar rápido: **Brevo** (ex-Sendinblue) ou **Mailtrap**, ambos com camada gratuita e SMTP padrão sem a complicação de senha de app.
-
-`FRONTEND_BASE_URL` é opcional — se vazio, os e-mails de reset de senha e primeiro acesso enviam o token cru com instrução de uso direto na API, em vez de um link clicável (já que ainda não existe frontend).
 
 ## O que NÃO está implementado ainda (de propósito)
 
@@ -38,8 +17,9 @@ Estes pontos exigem decisões de produto/infra que não estavam claras no escopo
 
 1. **Autenticação de sessão real** — as rotas de login retornam os dados do usuário mas não emitem sessão/JWT. Decida entre Flask-Login com sessão (SSR) ou JWT (SPA/mobile) antes de ir pra produção.
 2. **Verificação de papel admin** — as rotas em `app/admin/routes.py` não checam `papel = 'admin'`. Isso precisa de um decorator aplicado antes do deploy.
-3. **WhatsApp Business API** — isolado de propósito. Exige conta Business verificada na Meta e aprovação de templates de mensagem antes de qualquer código funcionar. Trate como fase 2, não como parte do MVP.
-4. **Gateway de pagamento** — schema pronto, integração não escrita (o escopo original também tratava isso como "inclusão futura").
+3. **Envio de e-mail** (código de verificação, reset de senha, primeiro acesso) — pontos marcados com `# TODO` em `app/auth/routes.py` e `app/admin/routes.py`. Precisa de um provedor (SES, SendGrid, Postmark).
+4. **WhatsApp Business API** — isolado de propósito. Exige conta Business verificada na Meta e aprovação de templates de mensagem antes de qualquer código funcionar. Trate como fase 2, não como parte do MVP.
+5. **Gateway de pagamento** — schema pronto, integração não escrita (o escopo original também tratava isso como "inclusão futura").
 
 ## Por que estas decisões de arquitetura
 

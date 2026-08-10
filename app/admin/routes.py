@@ -65,6 +65,14 @@ def listar_agendamentos():
     return jsonify(all_rows(query, (data, data)))
 
 
+@bp.route("/configuracoes", methods=["GET"])
+def obter_configuracoes():
+    cfg = one("SELECT * FROM configuracoes WHERE id = 'default'")
+    if not cfg:
+        return jsonify({"erro": "Configurações não encontradas."}), 404
+    return jsonify(cfg)
+
+
 @bp.route("/configuracoes", methods=["PUT"])
 def atualizar_configuracoes():
     dados = request.get_json(force=True)
