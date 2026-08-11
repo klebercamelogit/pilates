@@ -7,16 +7,16 @@ Backend Flask + frontend em templates HTML/JS, banco Turso (libSQL), deploy em V
 **Cliente:**
 - Cadastro com código de verificação enviado por e-mail (SMTP), com opção de reenvio se o e-mail não chegar
 - Ativação de conta, login com token de sessão real
-- Recuperação de senha: CPF → e-mail ofuscado → confirmação → token de reset, tudo por e-mail
-- Prontuário: registro de comorbidades e upload de exames (PDF/JPG/PNG)
-- Painel com calendário de agendamento (feriados nacionais automáticos + bloqueios manuais já refletidos), histórico de sessões, cancelamento
+- Recuperação de senha direta por e-mail (sem CPF)
+- **Meu prontuário**: registro de comorbidades (texto livre) e upload de exames (PDF/JPG/PNG), com listagem e download dos já enviados
+- Painel com calendário de agendamento (feriados nacionais automáticos + bloqueios manuais já refletidos, profissional exibido com CREFITO quando cadastrado), histórico de sessões, cancelamento
 
 **Administrador:**
 - Login com verificação real de papel (`papel = 'admin'`), token exigido em toda rota `/api/admin/*`
 - Agendamentos do dia, com cancelamento de qualquer cliente (não só o próprio)
-- Prontuário do paciente: busca por nome/CPF/e-mail, visualização de comorbidades, exames (com download) e histórico completo
+- Prontuário do paciente: busca por nome/e-mail, visualização de comorbidades, exames (com download) e histórico completo
 - Cadastro manual de cliente (dispara e-mail de primeiro acesso, nunca expõe senha)
-- CRUD de salas e de profissionais — quantidade gerenciável, duração de atendimento individual por profissional (negociável)
+- **CRUD completo de salas e de profissionais** — criar, editar, ativar/desativar e excluir. Exclusão é bloqueada com mensagem clara se já houver agendamentos vinculados (usar "desativar" nesse caso, para preservar o histórico). Profissional tem CEP (com autofill), endereço, número, complemento e CREFITO
 - Feriados regionais, eventos (jogos), força maior — cadastrar e remover (feriados nacionais são automáticos, não precisam ser cadastrados)
 - Janelas indisponíveis dentro do dia (recorrentes por dia da semana, ou pontuais) — cadastrar e remover
 - Configurações: capacidade por dia, horário de abertura/fechamento, duração padrão, dias de funcionamento (qualquer combinação de dias da semana)
@@ -118,7 +118,7 @@ UPDATE usuarios SET papel = 'admin' WHERE email = 'seu-email@exemplo.com';
 ## Por que estas decisões de arquitetura
 
 - **Turso via `libsql-client` puro (modo cloud) ou `sqlite3` da stdlib (modo local)**, nunca SQLAlchemy: o dialeto SQLAlchemy para libSQL é limitado; SQL explícito é mais previsível em serverless. Os dois modos compartilham a mesma interface em `app/db.py`, então o resto do código não sabe qual está rodando.
-- **Upload de exames fora do Flask em produção**: Vercel Serverless tem limite de payload bem abaixo de 300MB e timeout curto. O navegador sobe o arquivo direto pro bucket S3-compatible via URL pré-assinada; o Flask só grava a referência.
+- **Upload de exames fora do Flask em produção**: Vercel Serverless tem limite de payload bem abaixo de 300MB e timeout curto. O navegador sobe o arquivo direto pro bucket S3-compatible via URL pré-assinada; o Flask só grava a referência. **Em modo local, os caminhos de arquivo são sempre absolutos** (`os.path.abspath`) — Flask's `send_file()` resolve caminhos relativos em relação ao `root_path` da aplicação, não ao diretório de trabalho do processo, o que causava um bug real (upload e download apontavam para pastas diferentes até essa correção).
 - **UNIQUE constraint como trava real de concorrência**: a validação de regras de negócio em `rules.py` é uma checagem otimista. Quem impede overbooking de verdade é `UNIQUE(sala_id, data, hora_inicio)` no schema — se dois requests colidirem, o segundo INSERT falha e vira erro tratado, não duplicata.
 - **Token de sessão simples, não JWT/Flask-Login**: resolve o problema real (rotas admin sem checagem nenhuma) sem introduzir dependência nova. O modelo de dados (tabela `sessoes`) comporta migrar para JWT depois, se o projeto crescer.
 - **LGPD**: cadastro exige consentimento explícito, separado de qualquer "aceito os termos" genérico, com data e versão do termo registradas para auditoria. Cadastro manual pelo admin nunca marca esse campo — só o próprio cliente, no primeiro acesso.

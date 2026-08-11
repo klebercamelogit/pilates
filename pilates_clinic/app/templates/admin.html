@@ -85,7 +85,10 @@
           <form id="form-sala" style="margin-top:1em;">
             <label for="nova-sala">Nova sala</label>
             <input type="text" id="nova-sala" placeholder="ex: Sala 2" required>
-            <button type="submit" class="secondary">Adicionar sala</button>
+            <div style="display:flex; gap:0.5em;">
+              <button type="submit" id="btn-submit-sala" class="secondary">Adicionar sala</button>
+              <button type="button" id="btn-cancelar-sala" class="secondary" style="display:none;">Cancelar edição</button>
+            </div>
           </form>
         </div>
 
@@ -113,7 +116,10 @@
             <input type="text" id="novo-prof-endereco">
             <label for="novo-prof-complemento">Complemento</label>
             <input type="text" id="novo-prof-complemento">
-            <button type="submit" class="secondary">Adicionar profissional</button>
+            <div style="display:flex; gap:0.5em;">
+              <button type="submit" id="btn-submit-prof" class="secondary">Adicionar profissional</button>
+              <button type="button" id="btn-cancelar-prof" class="secondary" style="display:none;">Cancelar edição</button>
+            </div>
           </form>
         </div>
       </div>
@@ -390,9 +396,13 @@ async function carregarSalas() {
   document.getElementById('lista-salas').innerHTML = salas.map(s => `
     <div class="list-item ${!s.ativa ? 'cancelado' : ''}">
       <span>${s.nome}</span>
-      <button type="button" class="secondary btn-toggle-sala" data-id="${s.id}" data-ativa="${s.ativa}">
-        ${s.ativa ? 'Desativar' : 'Ativar'}
-      </button>
+      <div style="display:flex; gap:0.5em;">
+        <button type="button" class="secondary btn-editar-sala" data-id="${s.id}" data-nome="${s.nome}">Editar</button>
+        <button type="button" class="secondary btn-toggle-sala" data-id="${s.id}" data-ativa="${s.ativa}">
+          ${s.ativa ? 'Desativar' : 'Ativar'}
+        </button>
+        <button type="button" class="secondary btn-excluir-sala" data-id="${s.id}">Excluir</button>
+      </div>
     </div>
   `).join('') || '<p style="font-size:0.85rem;">Nenhuma sala cadastrada.</p>';
 
@@ -404,13 +414,49 @@ async function carregarSalas() {
       carregarSalas();
     });
   });
+
+  document.querySelectorAll('.btn-editar-sala').forEach(btn => {
+    btn.addEventListener('click', () => {
+      salaEditandoId = btn.dataset.id;
+      document.getElementById('nova-sala').value = btn.dataset.nome;
+      document.getElementById('btn-submit-sala').textContent = 'Salvar alterações';
+      document.getElementById('btn-cancelar-sala').style.display = 'inline-block';
+    });
+  });
+
+  document.querySelectorAll('.btn-excluir-sala').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Excluir esta sala? Essa ação não pode ser desfeita.')) return;
+      try {
+        await api(`/api/admin/salas/${btn.dataset.id}`, { method: 'DELETE' });
+        carregarSalas();
+      } catch (err) { alert(err.message); }
+    });
+  });
 }
+
+let salaEditandoId = null;
+
+document.getElementById('btn-cancelar-sala').addEventListener('click', () => {
+  salaEditandoId = null;
+  document.getElementById('form-sala').reset();
+  document.getElementById('btn-submit-sala').textContent = 'Adicionar sala';
+  document.getElementById('btn-cancelar-sala').style.display = 'none';
+});
 
 document.getElementById('form-sala').addEventListener('submit', async (e) => {
   e.preventDefault();
   limparAlerta('alerta');
+  const nome = document.getElementById('nova-sala').value;
   try {
-    await api('/api/admin/salas', { method: 'POST', body: JSON.stringify({ nome: document.getElementById('nova-sala').value }) });
+    if (salaEditandoId) {
+      await api(`/api/admin/salas/${salaEditandoId}`, { method: 'PUT', body: JSON.stringify({ nome }) });
+      salaEditandoId = null;
+      document.getElementById('btn-submit-sala').textContent = 'Adicionar sala';
+      document.getElementById('btn-cancelar-sala').style.display = 'none';
+    } else {
+      await api('/api/admin/salas', { method: 'POST', body: JSON.stringify({ nome }) });
+    }
     document.getElementById('form-sala').reset();
     carregarSalas();
   } catch (err) { mostrarAlerta('alerta', err.message); }
@@ -419,12 +465,17 @@ document.getElementById('form-sala').addEventListener('submit', async (e) => {
 // --- Profissionais ---
 async function carregarProfissionais() {
   const profs = await api('/api/admin/profissionais');
+  window._profissionaisCache = profs; // usado para preencher o form ao editar
   document.getElementById('lista-profissionais').innerHTML = profs.map(p => `
     <div class="list-item ${!p.ativo ? 'cancelado' : ''}">
       <span>${p.nome}${p.crefito ? ' — CREFITO ' + p.crefito : ''} — <span class="badge">${p.duracao_padrao_min} min</span></span>
-      <button type="button" class="secondary btn-toggle-prof" data-id="${p.id}" data-ativo="${p.ativo}">
-        ${p.ativo ? 'Desativar' : 'Ativar'}
-      </button>
+      <div style="display:flex; gap:0.5em;">
+        <button type="button" class="secondary btn-editar-prof" data-id="${p.id}">Editar</button>
+        <button type="button" class="secondary btn-toggle-prof" data-id="${p.id}" data-ativo="${p.ativo}">
+          ${p.ativo ? 'Desativar' : 'Ativar'}
+        </button>
+        <button type="button" class="secondary btn-excluir-prof" data-id="${p.id}">Excluir</button>
+      </div>
     </div>
   `).join('') || '<p style="font-size:0.85rem;">Nenhum profissional cadastrado.</p>';
 
@@ -436,7 +487,45 @@ async function carregarProfissionais() {
       carregarProfissionais();
     });
   });
+
+  document.querySelectorAll('.btn-editar-prof').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = window._profissionaisCache.find(x => x.id === btn.dataset.id);
+      if (!p) return;
+      profissionalEditandoId = p.id;
+      document.getElementById('novo-prof-nome').value = p.nome || '';
+      document.getElementById('novo-prof-crefito').value = p.crefito || '';
+      document.getElementById('novo-prof-duracao').value = p.duracao_padrao_min || 60;
+      document.getElementById('novo-prof-cep').value = p.cep || '';
+      document.getElementById('novo-prof-endereco').value = p.endereco || '';
+      document.getElementById('novo-prof-numero').value = p.numero || '';
+      document.getElementById('novo-prof-complemento').value = p.complemento || '';
+      document.getElementById('btn-submit-prof').textContent = 'Salvar alterações';
+      document.getElementById('btn-cancelar-prof').style.display = 'inline-block';
+      document.getElementById('novo-prof-nome').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  });
+
+  document.querySelectorAll('.btn-excluir-prof').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Excluir este profissional? Essa ação não pode ser desfeita.')) return;
+      try {
+        await api(`/api/admin/profissionais/${btn.dataset.id}`, { method: 'DELETE' });
+        carregarProfissionais();
+      } catch (err) { alert(err.message); }
+    });
+  });
 }
+
+let profissionalEditandoId = null;
+
+document.getElementById('btn-cancelar-prof').addEventListener('click', () => {
+  profissionalEditandoId = null;
+  document.getElementById('form-profissional').reset();
+  document.getElementById('novo-prof-duracao').value = 60;
+  document.getElementById('btn-submit-prof').textContent = 'Adicionar profissional';
+  document.getElementById('btn-cancelar-prof').style.display = 'none';
+});
 
 document.getElementById('novo-prof-cep').addEventListener('blur', async () => {
   const cep = document.getElementById('novo-prof-cep').value.replace(/\D/g, '');
@@ -454,19 +543,24 @@ document.getElementById('novo-prof-cep').addEventListener('blur', async () => {
 document.getElementById('form-profissional').addEventListener('submit', async (e) => {
   e.preventDefault();
   limparAlerta('alerta');
+  const payload = {
+    nome: document.getElementById('novo-prof-nome').value,
+    duracao_padrao_min: parseInt(document.getElementById('novo-prof-duracao').value, 10),
+    crefito: document.getElementById('novo-prof-crefito').value,
+    cep: document.getElementById('novo-prof-cep').value,
+    endereco: document.getElementById('novo-prof-endereco').value,
+    numero: document.getElementById('novo-prof-numero').value,
+    complemento: document.getElementById('novo-prof-complemento').value,
+  };
   try {
-    await api('/api/admin/profissionais', {
-      method: 'POST',
-      body: JSON.stringify({
-        nome: document.getElementById('novo-prof-nome').value,
-        duracao_padrao_min: parseInt(document.getElementById('novo-prof-duracao').value, 10),
-        crefito: document.getElementById('novo-prof-crefito').value,
-        cep: document.getElementById('novo-prof-cep').value,
-        endereco: document.getElementById('novo-prof-endereco').value,
-        numero: document.getElementById('novo-prof-numero').value,
-        complemento: document.getElementById('novo-prof-complemento').value,
-      }),
-    });
+    if (profissionalEditandoId) {
+      await api(`/api/admin/profissionais/${profissionalEditandoId}`, { method: 'PUT', body: JSON.stringify(payload) });
+      profissionalEditandoId = null;
+      document.getElementById('btn-submit-prof').textContent = 'Adicionar profissional';
+      document.getElementById('btn-cancelar-prof').style.display = 'none';
+    } else {
+      await api('/api/admin/profissionais', { method: 'POST', body: JSON.stringify(payload) });
+    }
     document.getElementById('form-profissional').reset();
     document.getElementById('novo-prof-duracao').value = 60;
     carregarProfissionais();

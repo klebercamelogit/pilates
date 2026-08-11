@@ -14,6 +14,13 @@ def _dono_do_prontuario(prontuario_id: str):
     return row["usuario_id"] if row else None
 
 
+@bp.route("/modo", methods=["GET"])
+def modo():
+    """Não é dado sensível — o frontend usa isso para saber se faz upload
+    multipart direto (local) ou pede URL pré-assinada (cloud)."""
+    return jsonify({"storage_mode": current_app.config["STORAGE_MODE"]})
+
+
 @bp.route("/upload", methods=["POST"])
 @requer_login
 def upload():
@@ -89,6 +96,45 @@ def url_upload():
     storage_key = storage.montar_storage_key(prontuario_id, nome_original)
     url = storage.gerar_url_upload(storage_key, content_type)
     return jsonify({"url_upload": url, "storage_key": storage_key})
+
+
+@bp.route("/confirmar", methods=["POST"])
+@requer_login
+def confirmar_upload():
+    """
+    Modo cloud: depois que o navegador faz o PUT direto pro bucket usando a
+    URL de /url-upload, ele chama esta rota para registrar os metadados do
+    exame no banco — o Flask nunca viu os bytes do arquivo em nenhum momento.
+    """
+    if current_app.config["STORAGE_MODE"] != "s3":
+        return jsonify({"erro": "Esta rota é só para STORAGE_MODE=s3."}), 400
+
+    dados = request.get_json(force=True)
+    obrigatorios = ["prontuario_id", "storage_key", "nome_original", "content_type", "tamanho_bytes"]
+    faltando = [c for c in obrigatorios if not dados.get(c)]
+    if faltando:
+        return jsonify({"erro": f"Campos obrigatórios ausentes: {faltando}"}), 400
+
+    dono = _dono_do_prontuario(dados["prontuario_id"])
+    if not dono:
+        return jsonify({"erro": "Prontuário não encontrado."}), 404
+    if not exige_dono_ou_admin(request.usuario_atual, dono):
+        return jsonify({"erro": "Acesso negado a este prontuário."}), 403
+
+    if dados["tamanho_bytes"] > current_app.config["MAX_UPLOAD_BYTES"]:
+        return jsonify({"erro": "Arquivo excede 300MB."}), 413
+
+    exame_id = new_id()
+    execute(
+        """
+        INSERT INTO exames_arquivos
+            (id, prontuario_id, nome_original, storage_key, content_type, tamanho_bytes)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (exame_id, dados["prontuario_id"], dados["nome_original"], dados["storage_key"],
+         dados["content_type"], dados["tamanho_bytes"]),
+    )
+    return jsonify({"mensagem": "Exame registrado.", "exame_id": exame_id}), 201
 
 
 @bp.route("/<exame_id>/download", methods=["GET"])

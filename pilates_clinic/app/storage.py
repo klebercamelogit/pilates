@@ -46,13 +46,21 @@ def _client():
 # pode ir direto por multipart/form-data — só em desenvolvimento.
 # ---------------------------------------------------------------------
 def salvar_arquivo_local(storage_key: str, file_storage) -> None:
-    caminho_completo = os.path.join(current_app.config["LOCAL_UPLOAD_DIR"], storage_key)
+    caminho_completo = caminho_arquivo_local(storage_key)
     os.makedirs(os.path.dirname(caminho_completo), exist_ok=True)
     file_storage.save(caminho_completo)
 
 
 def caminho_arquivo_local(storage_key: str) -> str:
-    return os.path.join(current_app.config["LOCAL_UPLOAD_DIR"], storage_key)
+    """
+    Sempre retorna um caminho ABSOLUTO. Flask's send_file() resolve
+    caminhos relativos em relação ao root_path da aplicação (a pasta do
+    pacote `app/`), enquanto salvar_arquivo_local usava resolução relativa
+    ao diretório de trabalho do processo — os dois ficavam inconsistentes
+    entre si, fazendo o download nunca achar o arquivo salvo pelo upload.
+    """
+    base = os.path.abspath(current_app.config["LOCAL_UPLOAD_DIR"])
+    return os.path.join(base, storage_key)
 
 
 def extensao_valida(nome_arquivo: str, content_type: str) -> bool:

@@ -169,6 +169,21 @@ def atualizar_sala(sala_id):
     return jsonify({"mensagem": "Sala atualizada."})
 
 
+@bp.route("/salas/<sala_id>", methods=["DELETE"])
+@requer_admin
+def excluir_sala(sala_id):
+    try:
+        execute("DELETE FROM salas WHERE id = ?", (sala_id,))
+    except Exception as e:
+        if "FOREIGN KEY" in str(e).upper():
+            return jsonify({
+                "erro": "Não é possível excluir: esta sala já tem agendamentos vinculados. "
+                        "Desative em vez de excluir, para preservar o histórico."
+            }), 409
+        raise
+    return jsonify({"mensagem": "Sala excluída."})
+
+
 @bp.route("/profissionais", methods=["GET"])
 @requer_admin
 def listar_profissionais():
@@ -215,6 +230,21 @@ def atualizar_profissional(prof_id):
     valores.append(prof_id)
     execute(f"UPDATE profissionais SET {', '.join(sets)} WHERE id = ?", valores)
     return jsonify({"mensagem": "Profissional atualizado."})
+
+
+@bp.route("/profissionais/<prof_id>", methods=["DELETE"])
+@requer_admin
+def excluir_profissional(prof_id):
+    try:
+        execute("DELETE FROM profissionais WHERE id = ?", (prof_id,))
+    except Exception as e:
+        if "FOREIGN KEY" in str(e).upper():
+            return jsonify({
+                "erro": "Não é possível excluir: este profissional já tem agendamentos "
+                        "vinculados. Desative em vez de excluir, para preservar o histórico."
+            }), 409
+        raise
+    return jsonify({"mensagem": "Profissional excluído."})
 
 
 @bp.route("/bloqueios-dia", methods=["GET"])

@@ -13,6 +13,7 @@
     <nav>
       <a href="#" class="tab-link active" data-tab="agendar">Agendar sessão</a>
       <a href="#" class="tab-link" data-tab="historico">Meus agendamentos</a>
+      <a href="#" class="tab-link" data-tab="prontuario">Meu prontuário</a>
     </nav>
     <div class="spacer"></div>
     <span id="nome-usuario" style="font-size:0.8rem; color: var(--sand);"></span>
@@ -60,6 +61,36 @@
       <h1 class="rail">Meus agendamentos</h1>
       <div id="lista-agendamentos"></div>
     </section>
+
+    <!-- ABA: MEU PRONTUÁRIO -->
+    <section id="painel-prontuario" style="display:none;">
+      <h1 class="rail">Meu prontuário</h1>
+      <p>Essas informações ficam disponíveis para os profissionais que te atendem na clínica.</p>
+
+      <div class="card" style="max-width:520px; margin-bottom:1.4em;">
+        <h3 class="rail">Comorbidades</h3>
+        <form id="form-comorbidade">
+          <label style="display:flex; align-items:center; gap:0.6em; text-transform:none; font-weight:400;">
+            <input type="checkbox" id="possui-comorbidade" style="width:auto;">
+            Possuo comorbidade(s)
+          </label>
+          <label for="descricao-comorbidade" style="margin-top:0.8em;">Descrição (opcional, mas recomendado)</label>
+          <textarea id="descricao-comorbidade" rows="4" placeholder="ex: hérnia de disco L4-L5, hipertensão controlada..."></textarea>
+          <button type="submit">Salvar</button>
+        </form>
+      </div>
+
+      <div class="card" style="max-width:520px;">
+        <h3 class="rail">Exames</h3>
+        <p style="font-size:0.85rem;">PDF, JPG ou PNG, até 300MB por arquivo.</p>
+        <div id="lista-exames" style="margin-bottom:1em;"></div>
+        <form id="form-exame">
+          <label for="arquivo-exame">Novo exame</label>
+          <input type="file" id="arquivo-exame" accept=".pdf,.jpg,.jpeg,.png" required>
+          <button type="submit" id="btn-enviar-exame">Enviar exame</button>
+        </form>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -83,7 +114,9 @@ document.querySelectorAll('.tab-link').forEach(link => {
     const tab = link.dataset.tab;
     document.getElementById('painel-agendar').style.display = tab === 'agendar' ? 'block' : 'none';
     document.getElementById('painel-historico').style.display = tab === 'historico' ? 'block' : 'none';
+    document.getElementById('painel-prontuario').style.display = tab === 'prontuario' ? 'block' : 'none';
     if (tab === 'historico') carregarHistorico();
+    if (tab === 'prontuario') carregarProntuario();
   });
 });
 
@@ -257,6 +290,128 @@ async function carregarHistorico() {
 }
 
 carregarCalendario();
+
+// --- Meu Prontuário ---
+let prontuarioIdAtual = null;
+
+async function carregarProntuario() {
+  limparAlerta('alerta');
+  try {
+    const registro = await api(`/api/prontuarios/${sessao.usuario_id}`);
+    prontuarioIdAtual = registro.prontuario ? registro.prontuario.id : null;
+
+    document.getElementById('possui-comorbidade').checked =
+      registro.prontuario ? !!registro.prontuario.possui_comorbidade : false;
+    document.getElementById('descricao-comorbidade').value =
+      registro.prontuario ? (registro.prontuario.descricao_comorbidade || '') : '';
+
+    const listaExames = document.getElementById('lista-exames');
+    listaExames.innerHTML = registro.exames.length === 0
+      ? '<p style="font-size:0.85rem; color:var(--ink-soft);">Nenhum exame enviado ainda.</p>'
+      : registro.exames.map(ex => `
+          <div class="list-item">
+            <span>${ex.nome_original}</span>
+            <a href="/api/exames/${ex.id}/download?token=${encodeURIComponent(sessao.token)}" class="btn secondary" target="_blank">Baixar</a>
+          </div>
+        `).join('');
+  } catch (err) {
+    mostrarAlerta('alerta', err.message);
+  }
+}
+
+document.getElementById('form-comorbidade').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  limparAlerta('alerta');
+  try {
+    const resp = await api('/api/prontuarios', {
+      method: 'POST',
+      body: JSON.stringify({
+        usuario_id: sessao.usuario_id,
+        possui_comorbidade: document.getElementById('possui-comorbidade').checked,
+        descricao_comorbidade: document.getElementById('descricao-comorbidade').value,
+      }),
+    });
+    prontuarioIdAtual = resp.prontuario_id;
+    mostrarAlerta('alerta', 'Informações salvas.', 'success');
+  } catch (err) {
+    mostrarAlerta('alerta', err.message);
+  }
+});
+
+async function garantirProntuario() {
+  if (prontuarioIdAtual) return prontuarioIdAtual;
+  // Cria um prontuário vazio se o cliente tentar enviar exame antes de
+  // preencher a seção de comorbidades — não força uma ordem específica.
+  const resp = await api('/api/prontuarios', {
+    method: 'POST',
+    body: JSON.stringify({
+      usuario_id: sessao.usuario_id,
+      possui_comorbidade: document.getElementById('possui-comorbidade').checked,
+      descricao_comorbidade: document.getElementById('descricao-comorbidade').value,
+    }),
+  });
+  prontuarioIdAtual = resp.prontuario_id;
+  return prontuarioIdAtual;
+}
+
+document.getElementById('form-exame').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  limparAlerta('alerta');
+  const arquivo = document.getElementById('arquivo-exame').files[0];
+  if (!arquivo) return;
+
+  const botao = document.getElementById('btn-enviar-exame');
+  botao.disabled = true;
+  botao.textContent = 'Enviando...';
+
+  try {
+    const prontuarioId = await garantirProntuario();
+    const { storage_mode } = await api('/api/exames/modo');
+
+    if (storage_mode === 'local') {
+      const formData = new FormData();
+      formData.append('prontuario_id', prontuarioId);
+      formData.append('arquivo', arquivo);
+      const resp = await fetch('/api/exames/upload', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${sessao.token}` },
+        body: formData,
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.erro || 'Falha no envio.');
+    } else {
+      // Modo cloud: pede URL pré-assinada, sobe direto pro bucket, e só
+      // então registra os metadados — o Flask nunca recebe os bytes do arquivo.
+      const { url_upload, storage_key } = await api('/api/exames/url-upload', {
+        method: 'POST',
+        body: JSON.stringify({
+          prontuario_id: prontuarioId,
+          nome_original: arquivo.name,
+          content_type: arquivo.type,
+        }),
+      });
+      const putResp = await fetch(url_upload, { method: 'PUT', headers: { 'Content-Type': arquivo.type }, body: arquivo });
+      if (!putResp.ok) throw new Error('Falha ao enviar o arquivo para o armazenamento.');
+
+      await api('/api/exames/confirmar', {
+        method: 'POST',
+        body: JSON.stringify({
+          prontuario_id: prontuarioId, storage_key,
+          nome_original: arquivo.name, content_type: arquivo.type, tamanho_bytes: arquivo.size,
+        }),
+      });
+    }
+
+    mostrarAlerta('alerta', 'Exame enviado com sucesso.', 'success');
+    document.getElementById('form-exame').reset();
+    carregarProntuario();
+  } catch (err) {
+    mostrarAlerta('alerta', err.message);
+  } finally {
+    botao.disabled = false;
+    botao.textContent = 'Enviar exame';
+  }
+});
 </script>
 </body>
 </html>
