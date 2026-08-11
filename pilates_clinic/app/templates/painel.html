@@ -27,19 +27,30 @@
     <section id="painel-agendar">
       <h1 class="rail">Agendar sessão</h1>
       <p>Escolha um dia disponível no calendário e o horário desejado.</p>
+      <label style="display:flex; align-items:center; gap:0.5em; text-transform:none; font-weight:400; margin-bottom:1em;">
+        <input type="checkbox" id="modo-multi-dia" style="width:auto;">
+        Agendar em vários dias (mesmo horário, mesmo profissional)
+      </label>
 
       <div class="grid-2" style="align-items:start;">
-        <div class="card">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.8em;">
-            <button type="button" class="secondary" id="mes-anterior">‹</button>
-            <h3 id="mes-atual-label"></h3>
-            <button type="button" class="secondary" id="mes-seguinte">›</button>
+        <div class="calendar-card">
+          <div class="calendar-header">
+            <button type="button" class="calendar-nav-btn" id="mes-anterior" aria-label="Mês anterior">‹</button>
+            <span class="month-label" id="mes-atual-label"></span>
+            <button type="button" class="calendar-nav-btn" id="mes-seguinte" aria-label="Próximo mês">›</button>
           </div>
           <div class="calendar-grid" id="calendario"></div>
+          <div class="calendar-legend">
+            <span class="item"><span class="dot disponivel"></span> Disponível</span>
+            <span class="item"><span class="dot indisponivel"></span> Indisponível</span>
+            <span class="item"><span class="dot selecionado"></span> Selecionado</span>
+            <span class="item"><span class="dot hoje"></span> Hoje</span>
+          </div>
         </div>
 
         <div class="card" id="form-horario-card" style="display:none;">
-          <h3 class="rail">Horário — <span id="data-selecionada"></span></h3>
+          <h3 class="rail" id="titulo-form-horario">Horário — <span id="data-selecionada"></span></h3>
+          <div id="dias-selecionados-lista" style="display:none; margin-bottom:1em; font-size:0.85rem; color:var(--ink-soft);"></div>
           <form id="form-agendamento">
             <label for="sala">Sala</label>
             <select id="sala" required></select>
@@ -50,8 +61,10 @@
             <label for="horario">Horário</label>
             <select id="horario" required></select>
 
-            <button type="submit" style="width:100%">Confirmar agendamento</button>
+            <button type="submit" style="width:100%" id="btn-confirmar-agendamento">Confirmar agendamento</button>
           </form>
+          <div id="resultado-multi-dia" style="margin-top:1em;"></div>
+        </div>
         </div>
       </div>
     </section>
@@ -149,10 +162,13 @@ async function carregarCalendario() {
     grid.appendChild(el);
   }
 
+  const dataStrHoje = hoje.toISOString().split('T')[0];
+
   Object.entries(dias).forEach(([dataStr, disponivel]) => {
     const dia = parseInt(dataStr.split('-')[2], 10);
     const el = document.createElement('div');
     el.className = `day-cell ${disponivel ? 'disponivel' : 'indisponivel'}`;
+    if (dataStr === dataStrHoje) el.classList.add('hoje');
     el.textContent = dia;
     if (disponivel) {
       el.addEventListener('click', () => selecionarDia(dataStr, el));
@@ -171,14 +187,56 @@ document.getElementById('mes-seguinte').addEventListener('click', () => {
 });
 
 let dataSelecionada = null;
+let diasSelecionadosMulti = new Set();
 let opcoesClinica = null;
 
-async function selecionarDia(dataStr, el) {
+function modoMultiAtivo() {
+  return document.getElementById('modo-multi-dia').checked;
+}
+
+document.getElementById('modo-multi-dia').addEventListener('change', () => {
+  // Trocar de modo limpa a seleção atual, pra não misturar os dois fluxos.
+  dataSelecionada = null;
+  diasSelecionadosMulti.clear();
   document.querySelectorAll('.day-cell.selecionado').forEach(c => c.classList.remove('selecionado'));
-  el.classList.add('selecionado');
-  dataSelecionada = dataStr;
-  document.getElementById('data-selecionada').textContent = dataStr.split('-').reverse().join('/');
+  document.getElementById('form-horario-card').style.display = 'none';
+  document.getElementById('resultado-multi-dia').innerHTML = '';
+});
+
+async function selecionarDia(dataStr, el) {
+  if (modoMultiAtivo()) {
+    if (diasSelecionadosMulti.has(dataStr)) {
+      diasSelecionadosMulti.delete(dataStr);
+      el.classList.remove('selecionado');
+    } else {
+      diasSelecionadosMulti.add(dataStr);
+      el.classList.add('selecionado');
+    }
+    if (diasSelecionadosMulti.size === 0) {
+      document.getElementById('form-horario-card').style.display = 'none';
+      return;
+    }
+    document.getElementById('titulo-form-horario').innerHTML =
+      `Horário — <span id="data-selecionada"></span>`;
+    document.getElementById('data-selecionada').textContent = '';
+    const listaDias = document.getElementById('dias-selecionados-lista');
+    listaDias.style.display = 'block';
+    const diasOrdenados = Array.from(diasSelecionadosMulti).sort();
+    listaDias.innerHTML = `<strong>${diasOrdenados.length} dia(s) selecionado(s):</strong> ` +
+      diasOrdenados.map(d => d.split('-').reverse().join('/')).join(', ');
+    document.getElementById('btn-confirmar-agendamento').textContent =
+      `Confirmar ${diasSelecionadosMulti.size} agendamento(s)`;
+  } else {
+    document.querySelectorAll('.day-cell.selecionado').forEach(c => c.classList.remove('selecionado'));
+    el.classList.add('selecionado');
+    dataSelecionada = dataStr;
+    document.getElementById('dias-selecionados-lista').style.display = 'none';
+    document.getElementById('data-selecionada').textContent = dataStr.split('-').reverse().join('/');
+    document.getElementById('btn-confirmar-agendamento').textContent = 'Confirmar agendamento';
+  }
+
   document.getElementById('form-horario-card').style.display = 'block';
+  document.getElementById('resultado-multi-dia').innerHTML = '';
 
   if (!opcoesClinica) {
     opcoesClinica = await api('/api/agendamentos/opcoes');
@@ -218,35 +276,81 @@ function gerarHorarios() {
   }
 }
 
+function calcularHoraFim(horaInicio, duracao) {
+  const [h, m] = horaInicio.split(':').map(Number);
+  const fimMin = h * 60 + m + duracao;
+  return `${String(Math.floor(fimMin / 60)).padStart(2, '0')}:${String(fimMin % 60).padStart(2, '0')}`;
+}
+
 document.getElementById('form-agendamento').addEventListener('submit', async (e) => {
   e.preventDefault();
   limparAlerta('alerta');
   const horaInicio = document.getElementById('horario').value;
   const profId = document.getElementById('profissional').value;
+  const salaId = document.getElementById('sala').value;
   const profissional = opcoesClinica.profissionais.find(p => p.id === profId);
   const duracao = profissional ? profissional.duracao_padrao_min : opcoesClinica.duracao_padrao_min;
-  const [h, m] = horaInicio.split(':').map(Number);
-  const fimMin = h * 60 + m + duracao;
-  const horaFim = `${String(Math.floor(fimMin/60)).padStart(2,'0')}:${String(fimMin%60).padStart(2,'0')}`;
+  const horaFim = calcularHoraFim(horaInicio, duracao);
 
-  try {
-    await api('/api/agendamentos', {
-      method: 'POST',
-      body: JSON.stringify({
-        usuario_id: sessao.usuario_id,
-        profissional_id: document.getElementById('profissional').value,
-        sala_id: document.getElementById('sala').value,
-        data: dataSelecionada,
-        hora_inicio: horaInicio,
-        hora_fim: horaFim,
-      }),
-    });
-    mostrarAlerta('alerta', 'Agendamento confirmado!', 'success');
-    document.getElementById('form-horario-card').style.display = 'none';
-    carregarCalendario();
-  } catch (err) {
-    mostrarAlerta('alerta', err.message);
+  const botao = document.getElementById('btn-confirmar-agendamento');
+  botao.disabled = true;
+
+  if (!modoMultiAtivo()) {
+    try {
+      await api('/api/agendamentos', {
+        method: 'POST',
+        body: JSON.stringify({
+          usuario_id: sessao.usuario_id, profissional_id: profId, sala_id: salaId,
+          data: dataSelecionada, hora_inicio: horaInicio, hora_fim: horaFim,
+        }),
+      });
+      mostrarAlerta('alerta', 'Agendamento confirmado!', 'success');
+      document.getElementById('form-horario-card').style.display = 'none';
+      carregarCalendario();
+    } catch (err) {
+      mostrarAlerta('alerta', err.message);
+    } finally {
+      botao.disabled = false;
+    }
+    return;
   }
+
+  // Modo múltiplos dias: cada dia é uma requisição independente — um dia
+  // com conflito não impede os outros de serem confirmados. O resultado
+  // de cada um é reportado separadamente, não é tudo-ou-nada.
+  const diasOrdenados = Array.from(diasSelecionadosMulti).sort();
+  const resultados = [];
+  for (const dia of diasOrdenados) {
+    try {
+      await api('/api/agendamentos', {
+        method: 'POST',
+        body: JSON.stringify({
+          usuario_id: sessao.usuario_id, profissional_id: profId, sala_id: salaId,
+          data: dia, hora_inicio: horaInicio, hora_fim: horaFim,
+        }),
+      });
+      resultados.push({ dia, sucesso: true });
+    } catch (err) {
+      resultados.push({ dia, sucesso: false, erro: err.message });
+    }
+  }
+
+  const container = document.getElementById('resultado-multi-dia');
+  container.innerHTML = resultados.map(r => `
+    <div class="list-item ${r.sucesso ? '' : 'cancelado'}">
+      <span>${r.dia.split('-').reverse().join('/')}</span>
+      <span class="badge ${r.sucesso ? '' : 'danger'}">${r.sucesso ? 'confirmado' : r.erro}</span>
+    </div>
+  `).join('');
+
+  const qtdSucesso = resultados.filter(r => r.sucesso).length;
+  mostrarAlerta('alerta', `${qtdSucesso} de ${resultados.length} agendamento(s) confirmado(s).`,
+    qtdSucesso === resultados.length ? 'success' : 'error');
+
+  diasSelecionadosMulti.clear();
+  document.querySelectorAll('.day-cell.selecionado').forEach(c => c.classList.remove('selecionado'));
+  botao.disabled = false;
+  carregarCalendario();
 });
 
 // --- Histórico ---

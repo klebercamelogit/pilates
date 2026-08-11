@@ -28,10 +28,13 @@ def carregar_configuracoes():
     return cfg
 
 
-def dia_esta_bloqueado(data_str: str) -> bool:
+def dia_esta_bloqueado(data_str: str, profissional_id: str = None) -> bool:
     if eh_feriado_nacional(data_str):
         return True
-    row = one("SELECT id FROM bloqueios_dia WHERE data = ?", (data_str,))
+    row = one(
+        "SELECT id FROM bloqueios_dia WHERE data = ? AND (profissional_id IS NULL OR profissional_id = ?)",
+        (data_str, profissional_id),
+    )
     return row is not None
 
 
@@ -45,14 +48,16 @@ def horario_dentro_do_expediente(hora_inicio: str, hora_fim: str, cfg: dict) -> 
     return cfg["hora_abertura"] <= hora_inicio and hora_fim <= cfg["hora_fechamento"]
 
 
-def horario_em_janela_indisponivel(data_str: str, hora_inicio: str, hora_fim: str) -> bool:
+def horario_em_janela_indisponivel(data_str: str, hora_inicio: str, hora_fim: str,
+                                    profissional_id: str = None) -> bool:
     d = datetime.strptime(data_str, "%Y-%m-%d").date()
     janelas = all_rows(
         """
         SELECT * FROM janelas_indisponiveis
         WHERE (dia_semana = ? OR data_especifica = ?)
+          AND (profissional_id IS NULL OR profissional_id = ?)
         """,
-        (d.weekday(), data_str),
+        (d.weekday(), data_str, profissional_id),
     )
     for j in janelas:
         # sobreposição de intervalos [hora_inicio, hora_fim) x [j.inicio, j.fim)
@@ -69,11 +74,11 @@ def capacidade_excedida(data_str: str, cfg: dict) -> bool:
     return row["total"] >= cfg["capacidade_max_dia"]
 
 
-def validar_disponibilidade(data_str: str, hora_inicio: str, hora_fim: str):
+def validar_disponibilidade(data_str: str, hora_inicio: str, hora_fim: str, profissional_id: str = None):
     cfg = carregar_configuracoes()
 
-    if dia_esta_bloqueado(data_str):
-        raise IndisponivelError("Data bloqueada (feriado, evento ou força maior).")
+    if dia_esta_bloqueado(data_str, profissional_id):
+        raise IndisponivelError("Data bloqueada (feriado, evento, força maior, ou indisponibilidade do profissional).")
 
     if not dia_da_semana_permitido(data_str, cfg):
         raise IndisponivelError("Clínica fechada neste dia da semana.")
@@ -81,8 +86,8 @@ def validar_disponibilidade(data_str: str, hora_inicio: str, hora_fim: str):
     if not horario_dentro_do_expediente(hora_inicio, hora_fim, cfg):
         raise IndisponivelError("Horário fora do expediente da clínica.")
 
-    if horario_em_janela_indisponivel(data_str, hora_inicio, hora_fim):
-        raise IndisponivelError("Horário dentro de uma janela indisponível (ex: almoço).")
+    if horario_em_janela_indisponivel(data_str, hora_inicio, hora_fim, profissional_id):
+        raise IndisponivelError("Horário indisponível (ex: almoço, ou bloqueio específico do profissional).")
 
     if capacidade_excedida(data_str, cfg):
         raise IndisponivelError("Capacidade máxima do dia atingida.")
@@ -97,7 +102,7 @@ def criar_agendamento(usuario_id: str, profissional_id: str, sala_id: str,
     o slot entre a checagem e o insert, o banco rejeita e nós propagamos
     como IndisponivelError também, para o cliente tentar outro horário.
     """
-    validar_disponibilidade(data_str, hora_inicio, hora_fim)
+    validar_disponibilidade(data_str, hora_inicio, hora_fim, profissional_id)
 
     agendamento_id = new_id()
     try:
@@ -138,10 +143,12 @@ def cancelar_agendamento(agendamento_id: str, usuario_id: str):
     )
 
 
-def listar_dias_disponiveis(ano: int, mes: int) -> dict:
+def listar_dias_disponiveis(ano: int, mes: int, profissional_id: str = None) -> dict:
     """
     Retorna um dict {'YYYY-MM-DD': True/False} para pintar o calendário
-    de verde (disponível) ou bloqueado, sem expor detalhes de horário aqui.
+    de verde (disponível) ou bloqueado. Se profissional_id for informado,
+    também considera bloqueios específicos daquele profissional — sem
+    isso, só reflete bloqueios globais (válidos pra todos).
     """
     cfg = carregar_configuracoes()
     resultado = {}
@@ -150,7 +157,7 @@ def listar_dias_disponiveis(ano: int, mes: int) -> dict:
         data_str = d.strftime("%Y-%m-%d")
         disponivel = (
             d.weekday() in cfg["dias_funcionamento"]
-            and not dia_esta_bloqueado(data_str)
+            and not dia_esta_bloqueado(data_str, profissional_id)
             and not capacidade_excedida(data_str, cfg)
         )
         resultado[data_str] = disponivel

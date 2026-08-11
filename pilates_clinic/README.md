@@ -27,18 +27,54 @@ Backend Flask + frontend em templates HTML/JS, banco Turso (libSQL), deploy em V
 
 ## ⚠️ Migração necessária no banco em produção (rodada atual)
 
-Esta versão adiciona suporte a guardar exames direto no Turso (`STORAGE_MODE=db`), sem precisar de bucket S3. Antes de fazer deploy, rode no Turso Studio (Ctrl+A antes de "Run"):
+Esta versão adiciona: bloqueio de agenda por profissional, e a tabela de solicitações do chatbot. Rode no Turso Studio (Ctrl+A antes de "Run"):
+```sql
+ALTER TABLE bloqueios_dia ADD COLUMN profissional_id TEXT REFERENCES profissionais(id);
+ALTER TABLE janelas_indisponiveis ADD COLUMN profissional_id TEXT REFERENCES profissionais(id);
+
+CREATE TABLE IF NOT EXISTS chatbot_solicitacoes (
+    id                  TEXT PRIMARY KEY,
+    tipo_atendimento    TEXT NOT NULL CHECK (tipo_atendimento IN ('pilates', 'fisioterapia', 'outro')),
+    nome                TEXT NOT NULL,
+    email               TEXT NOT NULL,
+    telefone            TEXT,
+    comorbidade         TEXT,
+    sala_desejada       TEXT,
+    profissional_desejado TEXT,
+    data_desejada       TEXT,
+    horario_desejado    TEXT,
+    mensagem            TEXT,
+    cliente_ja_cadastrado INTEGER NOT NULL DEFAULT 0,
+    atendido            INTEGER NOT NULL DEFAULT 0,
+    criado_em           TEXT NOT NULL DEFAULT (datetime('now'))
+);
+```
+`profissional_id` fica `NULL` para bloqueios que valem para todos os profissionais — só precisa ser preenchido quando o bloqueio é específico de um.
+
+## Novidades desta rodada
+
+- **Bloqueio de agenda por profissional**: ao criar um bloqueio de dia ou janela indisponível, o admin pode escolher "todos os profissionais" (comportamento anterior) ou um profissional específico.
+- **Agendamento em vários dias**: o cliente pode marcar o checkbox "Agendar em vários dias" e selecionar múltiplas datas no calendário — mesmo profissional, sala e horário para todas. Cada dia é validado independentemente; se um conflitar, os outros ainda são confirmados (resultado por dia, não tudo-ou-nada).
+- **Prontuário do paciente (admin)**: agora é uma lista filtrável por nome/e-mail (só pacientes que já enviaram algo), com ícones por linha — visualizar, baixar, excluir, incluir nova evidência. Quando há só 1 exame, baixar/excluir agem direto; com vários, abre o detalhe para escolher qual.
+- **Exclusão de exame**: endpoint novo (`DELETE /api/exames/<id>`), não existia antes.
+- **Indicador de arquivo nos agendamentos do dia**: ícone 📎 aparece ao lado do nome do cliente quando ele tem exame salvo no prontuário.
+- **Botão de WhatsApp**: nos agendamentos do dia e nas solicitações do chatbot, se o cliente tem WhatsApp cadastrado, aparece um botão que abre `wa.me` com mensagem pré-preenchida — **não é a API oficial do WhatsApp Business** (essa continua exigindo aprovação da Meta, fora de escopo), é um link direto que abre o WhatsApp do próprio admin para conversar manualmente.
+- **Chatbot público**: widget de conversa guiada por botões (sem IA) nas telas de login e cadastro. Coleta e-mail, nome (se novo), telefone, comorbidade e preferências de agendamento, e registra como uma "solicitação" — não cria agendamento nem edita prontuário diretamente, por segurança (ver decisão abaixo). O admin vê e gerencia essas solicitações numa aba nova.
+
+### Por que o chatbot não agenda nem anexa exame diretamente
+
+Sem exigir senha no meio da conversa, não tem como confirmar que quem está digitando um e-mail é realmente o dono daquela conta. Se o chatbot gravasse direto no prontuário de quem quer que informasse aquele e-mail, qualquer pessoa poderia anexar arquivo ou ver dado de outro cliente só sabendo o e-mail dele. Por isso o chatbot **coleta a intenção** (o que a pessoa quer, dados de contato) como uma solicitação pendente, e quem finaliza o agendamento de verdade — ou orienta a fazer login para enviar exame — é o admin, revisando manualmente.
+
+## ⚠️ Migrações de rodadas anteriores (se ainda não aplicadas)
+
+Upload de exame guardado direto no Turso (`STORAGE_MODE=db`):
 ```sql
 ALTER TABLE exames_arquivos ADD COLUMN storage_backend TEXT NOT NULL DEFAULT 'local';
 ALTER TABLE exames_arquivos ADD COLUMN conteudo TEXT;
 ```
-`storage_key` continua existindo e sendo usado nos modos `local`/`s3`; `conteudo` é novo e só é preenchido no modo `db`.
+`storage_key` continua existindo e sendo usado nos modos `local`/`s3`; `conteudo` é novo e só é preenchido no modo `db`. **Sobre o limite de 3MB nesse modo:** o Vercel limita o corpo de requisição de qualquer função serverless a 4.5MB (infraestrutura, não contornável), então `STORAGE_MODE=db` aceita só até ~3MB por arquivo. Arquivos maiores só funcionam com `STORAGE_MODE=s3` (bucket, até 300MB).
 
-**Sobre o limite de 3MB no modo `db`:** o Vercel limita o corpo de requisição de qualquer função serverless a 4.5MB — isso é da infraestrutura, não dá pra contornar por configuração. Por isso `STORAGE_MODE=db` aceita só até ~3MB por arquivo (definido em `MAX_UPLOAD_BYTES_DB`), deixando margem de segurança. Exames maiores que isso (fotos de celular em alta resolução, PDFs de várias páginas) só funcionam com `STORAGE_MODE=s3` (bucket, até 300MB).
-
-## ⚠️ Migração de rodada anterior (se ainda não aplicada)
-
-Esta versão também depende de colunas adicionadas anteriormente em `usuarios` e `profissionais` — se seu banco ainda não tem essas colunas, rode também:
+Campos de endereço/CREFITO em `usuarios` e `profissionais`:
 ```sql
 ALTER TABLE usuarios ADD COLUMN numero TEXT;
 

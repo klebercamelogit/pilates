@@ -18,6 +18,7 @@
       <a href="#" class="tab-link" data-tab="bloqueios">Feriados e indisponibilidades</a>
       <a href="#" class="tab-link" data-tab="config">Configurações</a>
       <a href="#" class="tab-link" data-tab="administradores">Administradores</a>
+      <a href="#" class="tab-link" data-tab="chatbot">Solicitações do chatbot</a>
     </nav>
     <div class="spacer"></div>
     <span id="nome-usuario" style="font-size:0.8rem; color: var(--sand);"></span>
@@ -38,9 +39,13 @@
     <!-- ABA: PRONTUÁRIO DO PACIENTE -->
     <section id="painel-prontuario" style="display:none;">
       <h1 class="rail">Prontuário do paciente</h1>
-      <p>Busque por nome ou e-mail para abrir o histórico e os exames do paciente.</p>
-      <input type="text" id="busca-cliente" placeholder="Buscar paciente..." style="max-width:360px;">
-      <div id="resultado-busca-cliente" style="margin-top:0.6em;"></div>
+      <p>Lista de pacientes que já enviaram algo ao prontuário. Filtre por nome ou e-mail.</p>
+
+      <div class="grid-2" style="max-width:600px; margin-bottom:1em;">
+        <input type="text" id="filtro-prontuario-nome" placeholder="Filtrar por nome...">
+        <input type="text" id="filtro-prontuario-email" placeholder="Filtrar por e-mail...">
+      </div>
+      <div id="lista-prontuarios"></div>
 
       <div id="detalhe-prontuario" style="display:none; margin-top:1.6em;">
         <div class="card">
@@ -53,7 +58,13 @@
           <h3>Exames</h3>
           <div id="prontuario-exames"></div>
 
-          <h3>Histórico de agendamentos</h3>
+          <form id="form-admin-upload-exame" style="margin-top:1em; max-width:360px;">
+            <label for="admin-arquivo-exame">Incluir nova evidência</label>
+            <input type="file" id="admin-arquivo-exame" accept=".pdf,.jpg,.jpeg,.png" required>
+            <button type="submit" class="secondary" id="btn-admin-enviar-exame">Enviar</button>
+          </form>
+
+          <h3 style="margin-top:1.4em;">Histórico de agendamentos</h3>
           <div id="prontuario-historico"></div>
         </div>
       </div>
@@ -146,6 +157,10 @@
             </select>
             <label for="b-motivo">Motivo</label>
             <input type="text" id="b-motivo" placeholder="ex: Aniversário da cidade" required>
+            <label for="b-profissional">Profissional</label>
+            <select id="b-profissional">
+              <option value="">Todos os profissionais</option>
+            </select>
             <button type="submit" class="secondary">Bloquear dia</button>
           </form>
         </div>
@@ -187,6 +202,10 @@
             </div>
             <label for="j-motivo">Motivo</label>
             <input type="text" id="j-motivo" placeholder="ex: Almoço">
+            <label for="j-profissional">Profissional</label>
+            <select id="j-profissional">
+              <option value="">Todos os profissionais</option>
+            </select>
             <button type="submit" class="secondary">Adicionar janela</button>
           </form>
         </div>
@@ -258,6 +277,16 @@
         <div id="lista-administradores"></div>
       </div>
     </section>
+
+    <!-- ABA: SOLICITAÇÕES DO CHATBOT -->
+    <section id="painel-chatbot" style="display:none;">
+      <h1 class="rail">Solicitações do chatbot</h1>
+      <p>Contatos recebidos pelo chatbot do site. Confirme o agendamento manualmente e marque como atendido.</p>
+      <label style="display:flex; align-items:center; gap:0.5em; text-transform:none; font-weight:400; margin-bottom:1em;">
+        <input type="checkbox" id="filtro-so-pendentes" style="width:auto;" checked> Mostrar só pendentes
+      </label>
+      <div id="lista-chatbot-solicitacoes"></div>
+    </section>
   </main>
 </div>
 
@@ -272,7 +301,7 @@ document.getElementById('btn-logout').addEventListener('click', async () => {
   window.location.href = '/';
 });
 
-const TABS = ['dia','prontuario','cliente','recursos','bloqueios','config','administradores'];
+const TABS = ['dia','prontuario','cliente','recursos','bloqueios','config','administradores','chatbot'];
 document.querySelectorAll('.tab-link').forEach(link => {
   link.addEventListener('click', (e) => {
     e.preventDefault();
@@ -285,6 +314,8 @@ document.querySelectorAll('.tab-link').forEach(link => {
     if (tab === 'config') carregarConfiguracoes();
     if (tab === 'recursos') { carregarSalas(); carregarProfissionais(); }
     if (tab === 'bloqueios') { carregarBloqueios(); carregarJanelas(); }
+    if (tab === 'prontuario') carregarListaProntuarios();
+    if (tab === 'chatbot') carregarSolicitacoesChatbot();
     if (tab === 'administradores') carregarAdministradores();
   });
 });
@@ -308,11 +339,14 @@ async function carregarAgendamentosDia() {
   lista.innerHTML = agendamentos.map(a => `
     <div class="list-item ${a.status === 'cancelado' ? 'cancelado' : ''}">
       <div>
-        <strong>${a.hora_inicio} — ${a.cliente_nome}</strong><br>
+        <strong>${a.hora_inicio} — ${a.cliente_nome}</strong>
+        ${a.tem_exame ? '<span title="Paciente tem exame salvo no prontuário">📎</span>' : ''}
+        <br>
         <span style="font-size:0.85rem; color:var(--ink-soft);">${a.profissional_nome} · ${a.sala_nome}</span>
       </div>
-      <div style="display:flex; align-items:center; gap:0.8em;">
+      <div style="display:flex; align-items:center; gap:0.6em;">
         <span class="badge ${a.status === 'cancelado' ? 'danger' : ''}">${a.status}</span>
+        ${a.cliente_whatsapp ? `<a class="btn secondary" target="_blank" href="https://wa.me/55${a.cliente_whatsapp.replace(/\\D/g,'')}?text=${encodeURIComponent('Olá ' + a.cliente_nome + ', aqui é da clínica de Pilates. ')}">WhatsApp</a>` : ''}
         ${a.status === 'confirmado' ? `<button type="button" class="secondary btn-cancelar-admin" data-id="${a.id}">Cancelar</button>` : ''}
       </div>
     </div>
@@ -330,34 +364,94 @@ async function carregarAgendamentosDia() {
 }
 
 // --- Prontuário do paciente ---
-let debounceBusca;
-document.getElementById('busca-cliente').addEventListener('input', (e) => {
-  clearTimeout(debounceBusca);
-  debounceBusca = setTimeout(() => buscarClientes(e.target.value), 300);
+let debounceFiltroProntuario;
+let prontuarioIdAtualAdmin = null;
+let usuarioIdAtualAdmin = null;
+
+['filtro-prontuario-nome', 'filtro-prontuario-email'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => {
+    clearTimeout(debounceFiltroProntuario);
+    debounceFiltroProntuario = setTimeout(carregarListaProntuarios, 300);
+  });
 });
 
-async function buscarClientes(termo) {
-  const container = document.getElementById('resultado-busca-cliente');
-  if (!termo) { container.innerHTML = ''; return; }
-  const clientes = await api(`/api/admin/clientes?busca=${encodeURIComponent(termo)}`);
-  if (clientes.length === 0) {
-    container.innerHTML = '<p style="font-size:0.85rem;">Nenhum paciente encontrado.</p>';
+async function carregarListaProntuarios() {
+  const nome = document.getElementById('filtro-prontuario-nome').value;
+  const email = document.getElementById('filtro-prontuario-email').value;
+  const params = new URLSearchParams();
+  if (nome) params.set('nome', nome);
+  if (email) params.set('email', email);
+
+  const lista = await api(`/api/admin/prontuarios?${params.toString()}`);
+  const container = document.getElementById('lista-prontuarios');
+
+  if (lista.length === 0) {
+    container.innerHTML = '<div class="empty-state">Nenhum paciente com prontuário encontrado.</div>';
     return;
   }
-  container.innerHTML = clientes.map(c => `
-    <div class="list-item" style="cursor:pointer;" data-id="${c.id}">
-      <div><strong>${c.nome}</strong><br><span style="font-size:0.8rem; color:var(--ink-soft);">${c.email}</span></div>
+
+  container.innerHTML = lista.map(p => `
+    <div class="list-item">
+      <div>
+        <strong>${p.nome}</strong><br>
+        <span style="font-size:0.8rem; color:var(--ink-soft);">${p.email} · ${p.qtd_exames} exame(s)</span>
+      </div>
+      <div style="display:flex; gap:0.4em;">
+        <button type="button" class="secondary btn-icone-ver" data-id="${p.usuario_id}" title="Visualizar">👁</button>
+        <button type="button" class="secondary btn-icone-baixar" data-id="${p.usuario_id}" title="Baixar">⬇</button>
+        <button type="button" class="secondary btn-icone-excluir" data-id="${p.usuario_id}" title="Excluir exame">🗑</button>
+        <button type="button" class="secondary btn-icone-incluir" data-id="${p.usuario_id}" title="Incluir evidência">＋</button>
+      </div>
     </div>
   `).join('');
-  container.querySelectorAll('.list-item').forEach(el => {
-    el.addEventListener('click', () => abrirProntuario(el.dataset.id));
+
+  container.querySelectorAll('.btn-icone-ver, .btn-icone-incluir').forEach(btn => {
+    btn.addEventListener('click', () => abrirProntuario(btn.dataset.id, btn.classList.contains('btn-icone-incluir')));
+  });
+
+  // Baixar: se só tem 1 exame, baixa direto; senão abre o detalhe (não dá pra
+  // escolher qual dos vários exames baixar sem abrir a lista completa).
+  container.querySelectorAll('.btn-icone-baixar').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const paciente = lista.find(p => p.usuario_id === btn.dataset.id);
+      if (paciente.qtd_exames === 1) {
+        const registro = await api(`/api/admin/clientes/${btn.dataset.id}/prontuario`);
+        const exame = registro.exames[0];
+        window.open(`/api/exames/${exame.id}/download?token=${encodeURIComponent(sessao.token)}`, '_blank');
+      } else {
+        abrirProntuario(btn.dataset.id);
+      }
+    });
+  });
+
+  // Excluir: mesma lógica — 1 exame só, exclui direto (com confirmação);
+  // vários exames, abre o detalhe pra escolher qual.
+  container.querySelectorAll('.btn-icone-excluir').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const paciente = lista.find(p => p.usuario_id === btn.dataset.id);
+      if (paciente.qtd_exames === 0) {
+        alert('Este paciente não tem exames para excluir.');
+        return;
+      }
+      if (paciente.qtd_exames === 1) {
+        if (!confirm('Excluir o único exame deste paciente?')) return;
+        const registro = await api(`/api/admin/clientes/${btn.dataset.id}/prontuario`);
+        await api(`/api/exames/${registro.exames[0].id}`, { method: 'DELETE' });
+        carregarListaProntuarios();
+      } else {
+        abrirProntuario(btn.dataset.id);
+      }
+    });
   });
 }
 
-async function abrirProntuario(usuarioId) {
+async function abrirProntuario(usuarioId, focarUpload) {
   limparAlerta('alerta');
   try {
     const registro = await api(`/api/admin/clientes/${usuarioId}/prontuario`);
+    usuarioIdAtualAdmin = usuarioId;
+    prontuarioIdAtualAdmin = registro.prontuario ? registro.prontuario.id : null;
+
     document.getElementById('detalhe-prontuario').style.display = 'block';
     document.getElementById('prontuario-nome-cliente').textContent = registro.cliente.nome;
     document.getElementById('prontuario-contato').textContent =
@@ -378,9 +472,21 @@ async function abrirProntuario(usuarioId) {
       : registro.exames.map(ex => `
           <div class="list-item">
             <span>${ex.nome_original}</span>
-            <a href="/api/exames/${ex.id}/download?token=${encodeURIComponent(sessao.token)}" class="btn secondary" target="_blank">Baixar</a>
+            <div style="display:flex; gap:0.4em;">
+              <a href="/api/exames/${ex.id}/download?token=${encodeURIComponent(sessao.token)}" class="btn secondary" target="_blank">Baixar</a>
+              <button type="button" class="secondary btn-excluir-exame-item" data-id="${ex.id}">Excluir</button>
+            </div>
           </div>
         `).join('');
+
+    exames.querySelectorAll('.btn-excluir-exame-item').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Excluir este exame?')) return;
+        await api(`/api/exames/${btn.dataset.id}`, { method: 'DELETE' });
+        abrirProntuario(usuarioId);
+        carregarListaProntuarios();
+      });
+    });
 
     const historico = document.getElementById('prontuario-historico');
     historico.innerHTML = registro.historico.length === 0
@@ -391,10 +497,81 @@ async function abrirProntuario(usuarioId) {
             <span class="badge ${h.status === 'cancelado' ? 'danger' : ''}">${h.status}</span>
           </div>
         `).join('');
+
+    if (focarUpload) {
+      document.getElementById('form-admin-upload-exame').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   } catch (err) {
     mostrarAlerta('alerta', err.message);
   }
 }
+
+document.getElementById('form-admin-upload-exame').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  limparAlerta('alerta');
+  const arquivo = document.getElementById('admin-arquivo-exame').files[0];
+  if (!arquivo || !usuarioIdAtualAdmin) return;
+
+  const botao = document.getElementById('btn-admin-enviar-exame');
+  botao.disabled = true;
+  botao.textContent = 'Enviando...';
+
+  try {
+    const { storage_mode, max_upload_bytes } = await api('/api/exames/modo');
+    if (arquivo.size > max_upload_bytes) {
+      const limiteMb = (max_upload_bytes / (1024 * 1024)).toFixed(1);
+      throw new Error(`Arquivo muito grande. O limite atual é ${limiteMb}MB.`);
+    }
+
+    // Garante que o prontuário existe antes de anexar o exame.
+    if (!prontuarioIdAtualAdmin) {
+      const resp = await api('/api/prontuarios', {
+        method: 'POST',
+        body: JSON.stringify({ usuario_id: usuarioIdAtualAdmin, possui_comorbidade: false }),
+      });
+      prontuarioIdAtualAdmin = resp.prontuario_id;
+    }
+
+    if (storage_mode === 'local' || storage_mode === 'db') {
+      const formData = new FormData();
+      formData.append('prontuario_id', prontuarioIdAtualAdmin);
+      formData.append('arquivo', arquivo);
+      const resp = await fetch('/api/exames/upload', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${sessao.token}` },
+        body: formData,
+      });
+      let data = null;
+      try { data = await resp.json(); } catch (e) { /* resposta nao era JSON */ }
+      if (!resp.ok) throw new Error(data && data.erro ? data.erro : 'Falha no envio.');
+    } else {
+      const { url_upload, storage_key } = await api('/api/exames/url-upload', {
+        method: 'POST',
+        body: JSON.stringify({
+          prontuario_id: prontuarioIdAtualAdmin, nome_original: arquivo.name, content_type: arquivo.type,
+        }),
+      });
+      const putResp = await fetch(url_upload, { method: 'PUT', headers: { 'Content-Type': arquivo.type }, body: arquivo });
+      if (!putResp.ok) throw new Error('Falha ao enviar o arquivo para o armazenamento.');
+      await api('/api/exames/confirmar', {
+        method: 'POST',
+        body: JSON.stringify({
+          prontuario_id: prontuarioIdAtualAdmin, storage_key,
+          nome_original: arquivo.name, content_type: arquivo.type, tamanho_bytes: arquivo.size,
+        }),
+      });
+    }
+
+    document.getElementById('form-admin-upload-exame').reset();
+    abrirProntuario(usuarioIdAtualAdmin);
+    carregarListaProntuarios();
+  } catch (err) {
+    mostrarAlerta('alerta', err.message);
+  } finally {
+    botao.disabled = false;
+    botao.textContent = 'Enviar';
+  }
+});
 
 // --- Cadastro manual de cliente ---
 document.getElementById('form-cliente').addEventListener('submit', async (e) => {
@@ -594,11 +771,22 @@ document.getElementById('form-profissional').addEventListener('submit', async (e
 });
 
 // --- Bloqueios de dia ---
+async function preencherSelectsProfissional() {
+  const profs = await api('/api/admin/profissionais');
+  const opcoes = profs.filter(p => p.ativo).map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
+  document.getElementById('b-profissional').innerHTML = '<option value="">Todos os profissionais</option>' + opcoes;
+  document.getElementById('j-profissional').innerHTML = '<option value="">Todos os profissionais</option>' + opcoes;
+}
+
 async function carregarBloqueios() {
+  await preencherSelectsProfissional();
   const bloqueios = await api('/api/admin/bloqueios-dia');
   document.getElementById('lista-bloqueios').innerHTML = bloqueios.map(b => `
     <div class="list-item">
-      <span>${b.data.split('-').reverse().join('/')} — ${b.motivo} <span class="badge plum">${b.tipo.replace('_',' ')}</span></span>
+      <span>${b.data.split('-').reverse().join('/')} — ${b.motivo}
+        <span class="badge plum">${b.tipo.replace('_',' ')}</span>
+        ${b.profissional_nome ? `<span class="badge">${b.profissional_nome}</span>` : '<span class="badge">todos</span>'}
+      </span>
       <button type="button" class="secondary btn-del-bloqueio" data-id="${b.id}">Remover</button>
     </div>
   `).join('') || '<p style="font-size:0.85rem;">Nenhum bloqueio manual cadastrado.</p>';
@@ -621,6 +809,7 @@ document.getElementById('form-bloqueio').addEventListener('submit', async (e) =>
         data: document.getElementById('b-data').value,
         tipo: document.getElementById('b-tipo').value,
         motivo: document.getElementById('b-motivo').value,
+        profissional_id: document.getElementById('b-profissional').value || null,
       }),
     });
     document.getElementById('form-bloqueio').reset();
@@ -643,6 +832,7 @@ async function carregarJanelas() {
       <span>
         ${j.dia_semana !== null ? DIAS[j.dia_semana] + ' (toda semana)' : j.data_especifica.split('-').reverse().join('/')}
         · ${j.hora_inicio}–${j.hora_fim} ${j.motivo ? '— ' + j.motivo : ''}
+        ${j.profissional_nome ? `<span class="badge">${j.profissional_nome}</span>` : '<span class="badge">todos</span>'}
       </span>
       <button type="button" class="secondary btn-del-janela" data-id="${j.id}">Remover</button>
     </div>
@@ -669,6 +859,7 @@ document.getElementById('form-janela').addEventListener('submit', async (e) => {
         hora_inicio: document.getElementById('j-inicio').value,
         hora_fim: document.getElementById('j-fim').value,
         motivo: document.getElementById('j-motivo').value,
+        profissional_id: document.getElementById('j-profissional').value || null,
       }),
     });
     document.getElementById('form-janela').reset();
@@ -761,6 +952,48 @@ document.getElementById('form-admin').addEventListener('submit', async (e) => {
     mostrarAlerta('alerta', err.message);
   }
 });
+
+// --- Solicitações do chatbot ---
+document.getElementById('filtro-so-pendentes').addEventListener('change', carregarSolicitacoesChatbot);
+
+async function carregarSolicitacoesChatbot() {
+  const soPendentes = document.getElementById('filtro-so-pendentes').checked;
+  const solicitacoes = await api(`/api/admin/chatbot-solicitacoes?pendentes=${soPendentes ? '1' : '0'}`);
+  const container = document.getElementById('lista-chatbot-solicitacoes');
+
+  if (solicitacoes.length === 0) {
+    container.innerHTML = '<div class="empty-state">Nenhuma solicitação encontrada.</div>';
+    return;
+  }
+
+  const TIPOS = { pilates: 'Agendamento Pilates', fisioterapia: 'Consulta Fisioterapia', outro: 'Outro assunto' };
+
+  container.innerHTML = solicitacoes.map(s => `
+    <div class="list-item ${s.atendido ? 'cancelado' : ''}">
+      <div>
+        <strong>${s.nome}</strong> <span class="badge">${TIPOS[s.tipo_atendimento] || s.tipo_atendimento}</span>
+        ${s.cliente_ja_cadastrado ? '<span class="badge plum">já é cliente</span>' : ''}<br>
+        <span style="font-size:0.85rem; color:var(--ink-soft);">
+          ${s.email} ${s.telefone ? '· ' + s.telefone : ''}
+          ${s.data_desejada ? '· deseja ' + s.data_desejada.split('-').reverse().join('/') : ''}
+          ${s.horario_desejado ? ' às ' + s.horario_desejado : ''}
+        </span>
+        ${s.comorbidade ? `<br><span style="font-size:0.8rem;">Comorbidade: ${s.comorbidade}</span>` : ''}
+      </div>
+      <div style="display:flex; gap:0.5em;">
+        ${s.telefone ? `<a class="btn secondary" target="_blank" href="https://wa.me/55${s.telefone.replace(/\D/g,'')}?text=${encodeURIComponent('Olá ' + s.nome + ', aqui é da clínica de Pilates. ')}">WhatsApp</a>` : ''}
+        ${!s.atendido ? `<button type="button" class="secondary btn-atender-solicitacao" data-id="${s.id}">Marcar atendido</button>` : '<span class="badge">atendido</span>'}
+      </div>
+    </div>
+  `).join('');
+
+  container.querySelectorAll('.btn-atender-solicitacao').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await api(`/api/admin/chatbot-solicitacoes/${btn.dataset.id}/atender`, { method: 'POST' });
+      carregarSolicitacoesChatbot();
+    });
+  });
+}
 </script>
 </body>
 </html>

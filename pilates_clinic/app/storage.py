@@ -96,6 +96,11 @@ def gerar_url_leitura(storage_key: str, expira_segundos: int = 3600) -> str:
     )
 
 
+def remover_arquivo_s3(storage_key: str) -> None:
+    client = _client()
+    client.delete_object(Bucket=current_app.config["S3_BUCKET"], Key=storage_key)
+
+
 def montar_storage_key(usuario_id: str, nome_original: str) -> str:
     import uuid
 

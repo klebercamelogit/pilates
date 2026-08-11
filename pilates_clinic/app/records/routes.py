@@ -184,6 +184,32 @@ def confirmar_upload():
     return jsonify({"mensagem": "Exame registrado.", "exame_id": exame_id}), 201
 
 
+@bp.route("/<exame_id>", methods=["DELETE"])
+@requer_login
+def excluir_exame(exame_id):
+    exame = one("SELECT * FROM exames_arquivos WHERE id = ?", (exame_id,))
+    if not exame:
+        return jsonify({"erro": "Exame não encontrado."}), 404
+
+    dono = _dono_do_prontuario(exame["prontuario_id"])
+    if not dono or not exige_dono_ou_admin(request.usuario_atual, dono):
+        return jsonify({"erro": "Acesso negado a este exame."}), 403
+
+    if exame["storage_backend"] == "local":
+        try:
+            os.remove(storage.caminho_arquivo_local(exame["storage_key"]))
+        except OSError:
+            pass  # arquivo já não existe em disco — segue removendo o registro
+    elif exame["storage_backend"] == "s3":
+        try:
+            storage.remover_arquivo_s3(exame["storage_key"])
+        except Exception:
+            pass  # best-effort — não bloqueia a exclusão do registro por falha no bucket
+
+    execute("DELETE FROM exames_arquivos WHERE id = ?", (exame_id,))
+    return jsonify({"mensagem": "Exame excluído."})
+
+
 @bp.route("/<exame_id>/download", methods=["GET"])
 @requer_login
 def download(exame_id):
