@@ -51,8 +51,11 @@ def minhas(usuario_id):
 @bp.route("/calendario/<int:ano>/<int:mes>", methods=["GET"])
 def calendario(ano, mes):
     """Disponibilidade não é dado sensível — fica pública (necessário antes
-    do login, para o cliente ver a agenda antes de decidir se cadastra)."""
-    return jsonify(listar_dias_disponiveis(ano, mes))
+    do login, para o cliente ver a agenda antes de decidir se cadastra).
+    Aceita ?profissional_id= opcional para refletir bloqueios específicos
+    daquele profissional; sem isso, mostra só bloqueios globais."""
+    profissional_id = request.args.get("profissional_id")
+    return jsonify(listar_dias_disponiveis(ano, mes, profissional_id))
 
 
 @bp.route("", methods=["POST"])

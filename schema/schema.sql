@@ -65,10 +65,11 @@ CREATE TABLE IF NOT EXISTS exames_arquivos (
     id              TEXT PRIMARY KEY,
     prontuario_id   TEXT NOT NULL REFERENCES prontuarios(id) ON DELETE CASCADE,
     nome_original   TEXT NOT NULL,
-    storage_key     TEXT NOT NULL,      -- chave/path no bucket
-    storage_url     TEXT,               -- url pública ou assinada de leitura (gerada on-demand)
+    storage_backend TEXT NOT NULL DEFAULT 'local', -- 'local' | 's3' | 'db'
+    storage_key     TEXT,               -- usado quando backend = 'local' ou 's3'
+    conteudo        TEXT,               -- usado quando backend = 'db' (conteúdo em base64)
     content_type    TEXT NOT NULL,
-    tamanho_bytes   INTEGER NOT NULL CHECK (tamanho_bytes <= 314572800), -- 300MB
+    tamanho_bytes   INTEGER NOT NULL CHECK (tamanho_bytes <= 314572800), -- 300MB, teto absoluto
     enviado_em      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -110,7 +111,8 @@ CREATE TABLE IF NOT EXISTS bloqueios_dia (
     data        TEXT NOT NULL,         -- YYYY-MM-DD
     motivo      TEXT NOT NULL,
     tipo        TEXT NOT NULL CHECK (tipo IN ('feriado_nacional','feriado_regional','evento','forca_maior')),
-    UNIQUE(data, tipo, motivo)
+    profissional_id TEXT REFERENCES profissionais(id), -- NULL = aplica a todos os profissionais
+    UNIQUE(data, tipo, motivo, profissional_id)
 );
 
 -- Janelas indisponíveis dentro do dia (ex: almoço 12h-13h), recorrentes ou pontuais
@@ -120,7 +122,8 @@ CREATE TABLE IF NOT EXISTS janelas_indisponiveis (
     data_especifica TEXT,              -- YYYY-MM-DD, NULL se for recorrente
     hora_inicio     TEXT NOT NULL,
     hora_fim        TEXT NOT NULL,
-    motivo          TEXT
+    motivo          TEXT,
+    profissional_id TEXT REFERENCES profissionais(id) -- NULL = aplica a todos os profissionais
 );
 
 -- ---------------------------------------------------------
@@ -178,4 +181,25 @@ CREATE TABLE IF NOT EXISTS notificacoes_whatsapp (
     tipo            TEXT NOT NULL CHECK (tipo IN ('lembrete_24h','confirmacao','cancelamento')),
     status_envio    TEXT NOT NULL DEFAULT 'pendente' CHECK (status_envio IN ('pendente','enviado','falhou')),
     enviado_em      TEXT
+);
+
+-- ---------------------------------------------------------
+-- SOLICITAÇÕES DO CHATBOT (leads coletados no site público,
+-- sem exigir login — admin revisa e dá sequência manualmente)
+-- ---------------------------------------------------------
+CREATE TABLE IF NOT EXISTS chatbot_solicitacoes (
+    id                  TEXT PRIMARY KEY,
+    tipo_atendimento    TEXT NOT NULL CHECK (tipo_atendimento IN ('pilates', 'fisioterapia', 'outro')),
+    nome                TEXT NOT NULL,
+    email               TEXT NOT NULL,
+    telefone            TEXT,
+    comorbidade         TEXT,
+    sala_desejada       TEXT,
+    profissional_desejado TEXT,
+    data_desejada       TEXT,
+    horario_desejado    TEXT,
+    mensagem            TEXT,
+    cliente_ja_cadastrado INTEGER NOT NULL DEFAULT 0,
+    atendido            INTEGER NOT NULL DEFAULT 0,
+    criado_em           TEXT NOT NULL DEFAULT (datetime('now'))
 );

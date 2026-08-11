@@ -1,6 +1,7 @@
+import base64
 import os
 
-from flask import Blueprint, request, jsonify, current_app, send_file
+from flask import Blueprint, request, jsonify, current_app, send_file, Response
 
 from app.db import execute, one, new_id
 from app import storage
@@ -14,26 +15,46 @@ def _dono_do_prontuario(prontuario_id: str):
     return row["usuario_id"] if row else None
 
 
+def _limite_atual_bytes() -> int:
+    """O limite depende do backend ativo — 'db' é bem mais restrito por causa
+    do limite de 4.5MB de corpo de requisição do Vercel (infraestrutura,
+    não contornável por configuração)."""
+    modo = current_app.config["STORAGE_MODE"]
+    if modo == "db":
+        return current_app.config["MAX_UPLOAD_BYTES_DB"]
+    return current_app.config["MAX_UPLOAD_BYTES"]
+
+
+def _erro_tamanho(tamanho_bytes: int, limite_bytes: int) -> str:
+    tamanho_mb = round(tamanho_bytes / (1024 * 1024), 1)
+    limite_mb = round(limite_bytes / (1024 * 1024), 1)
+    return f"Este arquivo tem {tamanho_mb}MB. O limite é {limite_mb}MB. Ajuste o tamanho do arquivo e reenvie."
+
+
 @bp.route("/modo", methods=["GET"])
 def modo():
     """Não é dado sensível — o frontend usa isso para saber se faz upload
-    multipart direto (local) ou pede URL pré-assinada (cloud)."""
-    return jsonify({"storage_mode": current_app.config["STORAGE_MODE"]})
+    multipart direto (local/db) ou pede URL pré-assinada (s3), e qual
+    limite de tamanho mostrar antes de tentar enviar."""
+    return jsonify({
+        "storage_mode": current_app.config["STORAGE_MODE"],
+        "max_upload_bytes": _limite_atual_bytes(),
+    })
 
 
 @bp.route("/upload", methods=["POST"])
 @requer_login
 def upload():
     """
-    Modo local (STORAGE_MODE=local): multipart/form-data direto, campo 'arquivo'.
-    Modo cloud (STORAGE_MODE=s3): use GET /url-upload abaixo para pedir a URL
-    pré-assinada e faça o PUT direto pro bucket a partir do navegador —
-    NÃO chame esta rota em produção.
+    Upload multipart direto pro Flask — usado nos modos 'local' (disco,
+    desenvolvimento) e 'db' (base64 no Turso, produção sem bucket, arquivo
+    pequeno). Em modo 's3', use /url-upload em vez desta rota.
     """
-    if current_app.config["STORAGE_MODE"] != "local":
+    modo_atual = current_app.config["STORAGE_MODE"]
+    if modo_atual not in ("local", "db"):
         return jsonify({
-            "erro": "Upload multipart direto só é permitido em STORAGE_MODE=local. "
-                    "Em produção, peça uma URL pré-assinada em /api/exames/url-upload."
+            "erro": "Upload multipart direto só é permitido em STORAGE_MODE=local ou db. "
+                    "Em modo s3, peça uma URL pré-assinada em /api/exames/url-upload."
         }), 400
 
     prontuario_id = request.form.get("prontuario_id")
@@ -50,22 +71,44 @@ def upload():
     if not storage.extensao_valida(arquivo.filename, arquivo.content_type):
         return jsonify({"erro": "Extensão ou tipo de arquivo não permitido."}), 400
 
+    exame_id = new_id()
+
+    if modo_atual == "db":
+        conteudo_bytes = arquivo.read()
+        tamanho = len(conteudo_bytes)
+        limite = _limite_atual_bytes()
+        if tamanho > limite:
+            return jsonify({"erro": _erro_tamanho(tamanho, limite)}), 413
+
+        conteudo_b64 = base64.b64encode(conteudo_bytes).decode("ascii")
+        execute(
+            """
+            INSERT INTO exames_arquivos
+                (id, prontuario_id, nome_original, storage_backend, conteudo,
+                 content_type, tamanho_bytes)
+            VALUES (?, ?, ?, 'db', ?, ?, ?)
+            """,
+            (exame_id, prontuario_id, arquivo.filename, conteudo_b64,
+             arquivo.content_type, tamanho),
+        )
+        return jsonify({"mensagem": "Exame enviado.", "exame_id": exame_id}), 201
+
+    # modo_atual == "local"
     storage_key = storage.montar_storage_key(prontuario_id, arquivo.filename)
     storage.salvar_arquivo_local(storage_key, arquivo)
 
     tamanho = os.path.getsize(storage.caminho_arquivo_local(storage_key))
-    if tamanho > current_app.config["MAX_UPLOAD_BYTES"]:
+    limite = _limite_atual_bytes()
+    if tamanho > limite:
         os.remove(storage.caminho_arquivo_local(storage_key))
-        tamanho_mb = round(tamanho / (1024 * 1024), 1)
-        limite_mb = round(current_app.config["MAX_UPLOAD_BYTES"] / (1024 * 1024), 1)
-        return jsonify({"erro": f"Este arquivo tem {tamanho_mb}MB. O limite é {limite_mb}MB. Ajuste o tamanho do arquivo e reenvie."}), 413
+        return jsonify({"erro": _erro_tamanho(tamanho, limite)}), 413
 
-    exame_id = new_id()
     execute(
         """
         INSERT INTO exames_arquivos
-            (id, prontuario_id, nome_original, storage_key, content_type, tamanho_bytes)
-        VALUES (?, ?, ?, ?, ?, ?)
+            (id, prontuario_id, nome_original, storage_backend, storage_key,
+             content_type, tamanho_bytes)
+        VALUES (?, ?, ?, 'local', ?, ?, ?)
         """,
         (exame_id, prontuario_id, arquivo.filename, storage_key, arquivo.content_type, tamanho),
     )
@@ -75,7 +118,7 @@ def upload():
 @bp.route("/url-upload", methods=["POST"])
 @requer_login
 def url_upload():
-    """Modo cloud: gera URL pré-assinada para o frontend subir o arquivo direto pro bucket."""
+    """Modo s3: gera URL pré-assinada para o frontend subir o arquivo direto pro bucket."""
     if current_app.config["STORAGE_MODE"] != "s3":
         return jsonify({"erro": "Esta rota é só para STORAGE_MODE=s3."}), 400
 
@@ -104,7 +147,7 @@ def url_upload():
 @requer_login
 def confirmar_upload():
     """
-    Modo cloud: depois que o navegador faz o PUT direto pro bucket usando a
+    Modo s3: depois que o navegador faz o PUT direto pro bucket usando a
     URL de /url-upload, ele chama esta rota para registrar os metadados do
     exame no banco — o Flask nunca viu os bytes do arquivo em nenhum momento.
     """
@@ -123,22 +166,48 @@ def confirmar_upload():
     if not exige_dono_ou_admin(request.usuario_atual, dono):
         return jsonify({"erro": "Acesso negado a este prontuário."}), 403
 
-    if dados["tamanho_bytes"] > current_app.config["MAX_UPLOAD_BYTES"]:
-        tamanho_mb = round(dados["tamanho_bytes"] / (1024 * 1024), 1)
-        limite_mb = round(current_app.config["MAX_UPLOAD_BYTES"] / (1024 * 1024), 1)
-        return jsonify({"erro": f"Este arquivo tem {tamanho_mb}MB. O limite é {limite_mb}MB. Ajuste o tamanho do arquivo e reenvie."}), 413
+    limite = current_app.config["MAX_UPLOAD_BYTES"]
+    if dados["tamanho_bytes"] > limite:
+        return jsonify({"erro": _erro_tamanho(dados["tamanho_bytes"], limite)}), 413
 
     exame_id = new_id()
     execute(
         """
         INSERT INTO exames_arquivos
-            (id, prontuario_id, nome_original, storage_key, content_type, tamanho_bytes)
-        VALUES (?, ?, ?, ?, ?, ?)
+            (id, prontuario_id, nome_original, storage_backend, storage_key,
+             content_type, tamanho_bytes)
+        VALUES (?, ?, ?, 's3', ?, ?, ?)
         """,
         (exame_id, dados["prontuario_id"], dados["nome_original"], dados["storage_key"],
          dados["content_type"], dados["tamanho_bytes"]),
     )
     return jsonify({"mensagem": "Exame registrado.", "exame_id": exame_id}), 201
+
+
+@bp.route("/<exame_id>", methods=["DELETE"])
+@requer_login
+def excluir_exame(exame_id):
+    exame = one("SELECT * FROM exames_arquivos WHERE id = ?", (exame_id,))
+    if not exame:
+        return jsonify({"erro": "Exame não encontrado."}), 404
+
+    dono = _dono_do_prontuario(exame["prontuario_id"])
+    if not dono or not exige_dono_ou_admin(request.usuario_atual, dono):
+        return jsonify({"erro": "Acesso negado a este exame."}), 403
+
+    if exame["storage_backend"] == "local":
+        try:
+            os.remove(storage.caminho_arquivo_local(exame["storage_key"]))
+        except OSError:
+            pass  # arquivo já não existe em disco — segue removendo o registro
+    elif exame["storage_backend"] == "s3":
+        try:
+            storage.remover_arquivo_s3(exame["storage_key"])
+        except Exception:
+            pass  # best-effort — não bloqueia a exclusão do registro por falha no bucket
+
+    execute("DELETE FROM exames_arquivos WHERE id = ?", (exame_id,))
+    return jsonify({"mensagem": "Exame excluído."})
 
 
 @bp.route("/<exame_id>/download", methods=["GET"])
@@ -152,9 +221,24 @@ def download(exame_id):
     if not dono or not exige_dono_ou_admin(request.usuario_atual, dono):
         return jsonify({"erro": "Acesso negado a este exame."}), 403
 
-    if current_app.config["STORAGE_MODE"] == "local":
+    # Decide pelo backend GRAVADO NA LINHA, não pelo STORAGE_MODE atual da
+    # config — se o modo mudar depois (ex: admin passa a usar s3), exames
+    # antigos salvos em 'db' ou 'local' continuam recuperáveis do jeito
+    # como foram salvos.
+    backend = exame["storage_backend"]
+
+    if backend == "db":
+        conteudo_bytes = base64.b64decode(exame["conteudo"])
+        return Response(
+            conteudo_bytes,
+            mimetype=exame["content_type"],
+            headers={"Content-Disposition": f'attachment; filename="{exame["nome_original"]}"'},
+        )
+
+    if backend == "local":
         caminho = storage.caminho_arquivo_local(exame["storage_key"])
         return send_file(caminho, download_name=exame["nome_original"], as_attachment=True)
 
+    # backend == "s3"
     url = storage.gerar_url_leitura(exame["storage_key"])
     return jsonify({"url_download": url})

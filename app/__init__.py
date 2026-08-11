@@ -15,6 +15,7 @@ def create_app(config_class=Config):
     from app.admin.routes import bp as admin_bp
     from app.records.routes import bp as records_bp
     from app.records.prontuario_routes import bp as prontuario_bp
+    from app.chatbot.routes import bp as chatbot_bp
     from app.views import bp as views_bp
 
     app.register_blueprint(auth_bp)
@@ -22,6 +23,7 @@ def create_app(config_class=Config):
     app.register_blueprint(admin_bp)
     app.register_blueprint(records_bp)
     app.register_blueprint(prontuario_bp)
+    app.register_blueprint(chatbot_bp)
     app.register_blueprint(views_bp)
 
     @app.route("/api/health")
