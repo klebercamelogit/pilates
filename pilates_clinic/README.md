@@ -25,6 +25,20 @@ Backend Flask + frontend em templates HTML/JS, banco Turso (libSQL), deploy em V
 - Frontend responsivo (mobile e desktop) para todas as telas
 - Estrutura de pagamento (tabela `pagamentos`) pronta para plugar gateway depois — integração ainda não escrita
 
+## ⚠️ Migração necessária no banco em produção
+
+Esta versão adiciona colunas novas em `usuarios` e `profissionais`. Antes de fazer deploy, rode no Turso Studio (SQL console — lembre de Ctrl+A antes de "Run" para executar tudo de uma vez):
+```sql
+ALTER TABLE usuarios ADD COLUMN numero TEXT;
+
+ALTER TABLE profissionais ADD COLUMN cep TEXT;
+ALTER TABLE profissionais ADD COLUMN endereco TEXT;
+ALTER TABLE profissionais ADD COLUMN numero TEXT;
+ALTER TABLE profissionais ADD COLUMN complemento TEXT;
+ALTER TABLE profissionais ADD COLUMN crefito TEXT;
+```
+Sem isso, cadastrar profissional ou cliente vai falhar com erro de "table has no column named ...".
+
 ## CPF removido do fluxo de usuário
 
 CPF não é mais coletado em nenhuma tela (cadastro público nem cadastro manual pelo admin). A recuperação de senha, que antes usava CPF como identificador (CPF → e-mail ofuscado → confirmação), agora é direta por e-mail: o cliente informa o e-mail e recebe um link/token de redefinição, sem etapa intermediária.

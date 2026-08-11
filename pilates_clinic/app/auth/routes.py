@@ -44,15 +44,15 @@ def cadastro():
     execute(
         """
         INSERT INTO usuarios (
-            id, nome, cpf, email, senha_hash, whatsapp, cep, endereco,
+            id, nome, cpf, email, senha_hash, whatsapp, cep, endereco, numero,
             complemento, idade, dia_nascimento, mes_nascimento, papel, ativo,
             codigo_verificacao, consentimento_lgpd_aceito, consentimento_lgpd_data,
             consentimento_lgpd_versao
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'cliente', 0, ?, 1, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'cliente', 0, ?, 1, ?, ?)
         """,
         (
             usuario_id, dados["nome"], cpf_interno, dados["email"], senha_hash,
-            dados["whatsapp"], dados.get("cep"), dados.get("endereco"),
+            dados["whatsapp"], dados.get("cep"), dados.get("endereco"), dados.get("numero"),
             dados.get("complemento"), dados.get("idade"), dados.get("dia_nascimento"),
             dados.get("mes_nascimento"), codigo_verificacao,
             datetime.utcnow().isoformat(),

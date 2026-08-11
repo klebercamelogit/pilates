@@ -152,7 +152,9 @@ async function selecionarDia(dataStr, el) {
     const selSala = document.getElementById('sala');
     const selProf = document.getElementById('profissional');
     selSala.innerHTML = opcoesClinica.salas.map(s => `<option value="${s.id}">${s.nome}</option>`).join('');
-    selProf.innerHTML = opcoesClinica.profissionais.map(p => `<option value="${p.id}">${p.nome} (${p.duracao_padrao_min} min)</option>`).join('');
+    selProf.innerHTML = opcoesClinica.profissionais.map(p =>
+      `<option value="${p.id}">${p.nome}${p.crefito ? ' — CREFITO ' + p.crefito : ''} (${p.duracao_padrao_min} min)</option>`
+    ).join('');
     selProf.addEventListener('change', gerarHorarios);
   }
   gerarHorarios();

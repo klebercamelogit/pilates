@@ -95,8 +95,24 @@
           <form id="form-profissional" style="margin-top:1em;">
             <label for="novo-prof-nome">Nome</label>
             <input type="text" id="novo-prof-nome" placeholder="ex: Dra. Ana" required>
+            <label for="novo-prof-crefito">CREFITO</label>
+            <input type="text" id="novo-prof-crefito" placeholder="ex: 12345-F">
             <label for="novo-prof-duracao">Duração de atendimento (min)</label>
             <input type="number" id="novo-prof-duracao" value="60" min="15" step="15" required>
+            <div class="grid-2">
+              <div>
+                <label for="novo-prof-cep">CEP</label>
+                <input type="text" id="novo-prof-cep" maxlength="8" placeholder="somente números">
+              </div>
+              <div>
+                <label for="novo-prof-numero">Número</label>
+                <input type="text" id="novo-prof-numero">
+              </div>
+            </div>
+            <label for="novo-prof-endereco">Endereço</label>
+            <input type="text" id="novo-prof-endereco">
+            <label for="novo-prof-complemento">Complemento</label>
+            <input type="text" id="novo-prof-complemento">
             <button type="submit" class="secondary">Adicionar profissional</button>
           </form>
         </div>
@@ -405,7 +421,7 @@ async function carregarProfissionais() {
   const profs = await api('/api/admin/profissionais');
   document.getElementById('lista-profissionais').innerHTML = profs.map(p => `
     <div class="list-item ${!p.ativo ? 'cancelado' : ''}">
-      <span>${p.nome} — <span class="badge">${p.duracao_padrao_min} min</span></span>
+      <span>${p.nome}${p.crefito ? ' — CREFITO ' + p.crefito : ''} — <span class="badge">${p.duracao_padrao_min} min</span></span>
       <button type="button" class="secondary btn-toggle-prof" data-id="${p.id}" data-ativo="${p.ativo}">
         ${p.ativo ? 'Desativar' : 'Ativar'}
       </button>
@@ -422,6 +438,19 @@ async function carregarProfissionais() {
   });
 }
 
+document.getElementById('novo-prof-cep').addEventListener('blur', async () => {
+  const cep = document.getElementById('novo-prof-cep').value.replace(/\D/g, '');
+  if (cep.length !== 8) return;
+  try {
+    const resp = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+    const data = await resp.json();
+    if (!data.erro) {
+      document.getElementById('novo-prof-endereco').value =
+        `${data.logradouro}, ${data.bairro}, ${data.localidade} - ${data.uf}`;
+    }
+  } catch (e) { /* CEP inválido ou serviço fora do ar — preencher manualmente */ }
+});
+
 document.getElementById('form-profissional').addEventListener('submit', async (e) => {
   e.preventDefault();
   limparAlerta('alerta');
@@ -431,6 +460,11 @@ document.getElementById('form-profissional').addEventListener('submit', async (e
       body: JSON.stringify({
         nome: document.getElementById('novo-prof-nome').value,
         duracao_padrao_min: parseInt(document.getElementById('novo-prof-duracao').value, 10),
+        crefito: document.getElementById('novo-prof-crefito').value,
+        cep: document.getElementById('novo-prof-cep').value,
+        endereco: document.getElementById('novo-prof-endereco').value,
+        numero: document.getElementById('novo-prof-numero').value,
+        complemento: document.getElementById('novo-prof-complemento').value,
       }),
     });
     document.getElementById('form-profissional').reset();

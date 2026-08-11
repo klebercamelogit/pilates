@@ -20,7 +20,9 @@ def opcoes():
     cfg = carregar_configuracoes()
     return jsonify({
         "salas": all_rows("SELECT id, nome FROM salas WHERE ativa = 1"),
-        "profissionais": all_rows("SELECT id, nome, duracao_padrao_min FROM profissionais WHERE ativo = 1"),
+        "profissionais": all_rows(
+            "SELECT id, nome, duracao_padrao_min, crefito FROM profissionais WHERE ativo = 1"
+        ),
         "hora_abertura": cfg["hora_abertura"],
         "hora_fechamento": cfg["hora_fechamento"],
         "duracao_padrao_min": cfg["duracao_padrao_min"],

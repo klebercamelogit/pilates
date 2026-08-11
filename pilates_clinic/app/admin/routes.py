@@ -185,8 +185,14 @@ def criar_profissional():
         return jsonify({"erro": "nome é obrigatório."}), 400
     prof_id = new_id()
     execute(
-        "INSERT INTO profissionais (id, nome, duracao_padrao_min, ativo) VALUES (?, ?, ?, 1)",
-        (prof_id, dados["nome"], dados.get("duracao_padrao_min", 60)),
+        """
+        INSERT INTO profissionais
+            (id, nome, duracao_padrao_min, cep, endereco, numero, complemento, crefito, ativo)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+        """,
+        (prof_id, dados["nome"], dados.get("duracao_padrao_min", 60),
+         dados.get("cep"), dados.get("endereco"), dados.get("numero"),
+         dados.get("complemento"), dados.get("crefito")),
     )
     return jsonify({"mensagem": "Profissional cadastrado.", "id": prof_id}), 201
 
@@ -196,8 +202,10 @@ def criar_profissional():
 def atualizar_profissional(prof_id):
     dados = request.get_json(force=True)
     sets, valores = [], []
-    if "nome" in dados:
-        sets.append("nome = ?"); valores.append(dados["nome"])
+    campos_texto = ["nome", "cep", "endereco", "numero", "complemento", "crefito"]
+    for campo in campos_texto:
+        if campo in dados:
+            sets.append(f"{campo} = ?"); valores.append(dados[campo])
     if "duracao_padrao_min" in dados:
         sets.append("duracao_padrao_min = ?"); valores.append(dados["duracao_padrao_min"])
     if "ativo" in dados:

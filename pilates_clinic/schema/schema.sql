@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     whatsapp        TEXT NOT NULL,
     cep             TEXT,
     endereco        TEXT,
+    numero          TEXT,
     complemento     TEXT,
     idade           INTEGER,
     dia_nascimento  INTEGER,
@@ -85,6 +86,11 @@ CREATE TABLE IF NOT EXISTS profissionais (
     usuario_id          TEXT REFERENCES usuarios(id), -- pode ou não ter login no sistema
     nome                TEXT NOT NULL,
     duracao_padrao_min  INTEGER NOT NULL DEFAULT 60,
+    cep                 TEXT,
+    endereco            TEXT,
+    numero              TEXT,
+    complemento         TEXT,
+    crefito             TEXT,       -- registro no conselho profissional (CREFITO)
     ativo               INTEGER NOT NULL DEFAULT 1
 );
 
