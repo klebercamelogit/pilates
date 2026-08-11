@@ -139,6 +139,31 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   box-shadow: var(--shadow);
 }
 
+.campo-senha {
+  position: relative;
+  margin-bottom: 1em;
+}
+.campo-senha input {
+  margin-bottom: 0;
+  padding-right: 2.6em;
+}
+.campo-senha .toggle-senha {
+  position: absolute;
+  right: 0.5em;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 0.3em;
+  cursor: pointer;
+  color: var(--ink-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.campo-senha .toggle-senha:hover { background: none; color: var(--ink); }
+.campo-senha .toggle-senha:focus-visible { outline: 2px solid var(--plum); outline-offset: 1px; }
+
 .auth-shell {
   min-height: 100vh;
   display: flex;
