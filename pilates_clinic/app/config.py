@@ -11,10 +11,19 @@ class Config:
     LOCAL_DB_PATH = os.environ.get("LOCAL_DB_PATH", "local.db")
 
     # STORAGE_MODE=local -> exames salvos em disco, upload multipart direto pro Flask
-    #                       (sem limite de 300MB do Vercel, pois é local)
-    # STORAGE_MODE=s3    -> bucket S3-compatible via URL pré-assinada (produção)
+    #                       (só funciona em desenvolvimento local — o sistema de
+    #                       arquivos do Vercel é só leitura fora de /tmp)
+    # STORAGE_MODE=db    -> conteúdo do arquivo salvo em base64 numa coluna do
+    #                       Turso. Funciona em produção sem precisar de bucket,
+    #                       mas o Vercel limita o corpo de requisição de toda
+    #                       função serverless a 4.5MB (nível de infraestrutura,
+    #                       não contornável) — por isso o limite é bem menor
+    #                       que os outros modos, ver MAX_UPLOAD_BYTES_DB.
+    # STORAGE_MODE=s3    -> bucket S3-compatible via URL pré-assinada (produção,
+    #                       único modo que sustenta arquivos grandes de verdade)
     STORAGE_MODE = os.environ.get("STORAGE_MODE", "s3")
     LOCAL_UPLOAD_DIR = os.environ.get("LOCAL_UPLOAD_DIR", "instance/uploads")
+    MAX_UPLOAD_BYTES_DB = int(os.environ.get("MAX_UPLOAD_BYTES_DB", 3 * 1024 * 1024))  # 3MB
 
     # Turso / libSQL (usado só quando DB_MODE=cloud)
     TURSO_DATABASE_URL = os.environ.get("TURSO_DATABASE_URL")  # ex: libsql://seu-db.turso.io
@@ -30,7 +39,7 @@ class Config:
     S3_SECRET_KEY = os.environ.get("S3_SECRET_KEY")
     S3_REGION = os.environ.get("S3_REGION", "auto")
 
-    MAX_UPLOAD_BYTES = 300 * 1024 * 1024  # 300MB
+    MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", 300 * 1024 * 1024))  # 300MB padrão
 
     # E-mail (para código de verificação e reset de senha)
     SMTP_HOST = os.environ.get("SMTP_HOST")

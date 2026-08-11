@@ -59,10 +59,16 @@
       <input type="number" id="mes_nascimento" min="1" max="12">
 
       <label for="senha">Senha</label>
-      <input type="password" id="senha" required>
+      <div class="campo-senha">
+        <input type="password" id="senha" required>
+        <button type="button" class="toggle-senha" tabindex="-1"></button>
+      </div>
 
       <label for="repetir_senha">Repetir senha</label>
-      <input type="password" id="repetir_senha" required>
+      <div class="campo-senha">
+        <input type="password" id="repetir_senha" required>
+        <button type="button" class="toggle-senha" tabindex="-1"></button>
+      </div>
 
       <label style="display:flex; align-items:flex-start; gap:0.6em; text-transform:none; font-weight:400; margin-top:0.4em;">
         <input type="checkbox" id="consentimento" style="width:auto; margin:0.2em 0 0;" required>

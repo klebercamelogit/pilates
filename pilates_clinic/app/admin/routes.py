@@ -12,6 +12,67 @@ from app.records.prontuario_routes import montar_registro_completo
 bp = Blueprint("admin", __name__, url_prefix="/api/admin")
 
 
+@bp.route("/administradores", methods=["GET"])
+@requer_admin
+def listar_administradores():
+    return jsonify(all_rows(
+        "SELECT id, nome, email, whatsapp FROM usuarios WHERE papel = 'admin' ORDER BY nome"
+    ))
+
+
+@bp.route("/administradores", methods=["POST"])
+@requer_admin
+def criar_administrador():
+    """
+    Cria um novo administrador. Mesmo fluxo de segurança do cadastro manual
+    de cliente: a senha nunca é definida aqui, o novo admin recebe um
+    e-mail de primeiro acesso e define a própria senha.
+    """
+    dados = request.get_json(force=True)
+    obrigatorios = ["nome", "email", "whatsapp"]
+    faltando = [c for c in obrigatorios if not dados.get(c)]
+    if faltando:
+        return jsonify({"erro": f"Campos obrigatórios ausentes: {faltando}"}), 400
+
+    if one("SELECT id FROM usuarios WHERE email = ?", (dados["email"],)):
+        return jsonify({"erro": "E-mail já cadastrado."}), 409
+
+    usuario_id = new_id()
+    token_primeiro_acesso = secrets.token_urlsafe(32)
+    cpf_interno = f"sem-cpf-{new_id()}"
+
+    execute(
+        """
+        INSERT INTO usuarios (
+            id, nome, cpf, email, senha_hash, whatsapp, papel, ativo,
+            token_reset_senha, consentimento_lgpd_aceito
+        ) VALUES (?, ?, ?, ?, NULL, ?, 'admin', 0, ?, 0)
+        """,
+        (usuario_id, dados["nome"], cpf_interno, dados["email"], dados["whatsapp"],
+         token_primeiro_acesso),
+    )
+    notifications.enviar_primeiro_acesso(dados["email"], dados["nome"], token_primeiro_acesso)
+
+    return jsonify({"mensagem": "Administrador cadastrado. E-mail de primeiro acesso enviado.",
+                     "usuario_id": usuario_id}), 201
+
+
+@bp.route("/administradores/<usuario_id>/revogar", methods=["POST"])
+@requer_admin
+def revogar_administrador(usuario_id):
+    """Rebaixa um admin para cliente comum. Bloqueado contra auto-revogação
+    para evitar que o sistema fique sem nenhum admin com acesso."""
+    if usuario_id == request.usuario_atual["usuario_id"]:
+        return jsonify({"erro": "Você não pode revogar o próprio acesso de administrador."}), 400
+
+    alvo = one("SELECT id FROM usuarios WHERE id = ? AND papel = 'admin'", (usuario_id,))
+    if not alvo:
+        return jsonify({"erro": "Administrador não encontrado."}), 404
+
+    execute("UPDATE usuarios SET papel = 'cliente' WHERE id = ?", (usuario_id,))
+    return jsonify({"mensagem": "Acesso de administrador revogado."})
+
+
 @bp.route("/clientes", methods=["GET"])
 @requer_admin
 def listar_clientes():

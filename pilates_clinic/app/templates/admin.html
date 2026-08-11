@@ -17,6 +17,7 @@
       <a href="#" class="tab-link" data-tab="recursos">Salas e profissionais</a>
       <a href="#" class="tab-link" data-tab="bloqueios">Feriados e indisponibilidades</a>
       <a href="#" class="tab-link" data-tab="config">Configurações</a>
+      <a href="#" class="tab-link" data-tab="administradores">Administradores</a>
     </nav>
     <div class="spacer"></div>
     <span id="nome-usuario" style="font-size:0.8rem; color: var(--sand);"></span>
@@ -233,6 +234,30 @@
         <button type="submit">Salvar configurações</button>
       </form>
     </section>
+
+    <!-- ABA: ADMINISTRADORES -->
+    <section id="painel-administradores" style="display:none;">
+      <h1 class="rail">Administradores</h1>
+      <p>Quem tem acesso a este painel. Um novo administrador recebe um e-mail para definir a própria senha — ninguém aqui vê ou define a senha de outra pessoa.</p>
+
+      <div class="card" style="max-width:520px; margin-bottom:1.4em;">
+        <h3 class="rail">Adicionar administrador</h3>
+        <form id="form-admin">
+          <label for="adm-nome">Nome completo</label>
+          <input type="text" id="adm-nome" required>
+          <label for="adm-email">E-mail</label>
+          <input type="email" id="adm-email" required>
+          <label for="adm-whatsapp">WhatsApp</label>
+          <input type="text" id="adm-whatsapp" required>
+          <button type="submit">Adicionar administrador</button>
+        </form>
+      </div>
+
+      <div class="card" style="max-width:520px;">
+        <h3 class="rail">Administradores atuais</h3>
+        <div id="lista-administradores"></div>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -247,7 +272,7 @@ document.getElementById('btn-logout').addEventListener('click', async () => {
   window.location.href = '/';
 });
 
-const TABS = ['dia','prontuario','cliente','recursos','bloqueios','config'];
+const TABS = ['dia','prontuario','cliente','recursos','bloqueios','config','administradores'];
 document.querySelectorAll('.tab-link').forEach(link => {
   link.addEventListener('click', (e) => {
     e.preventDefault();
@@ -260,6 +285,7 @@ document.querySelectorAll('.tab-link').forEach(link => {
     if (tab === 'config') carregarConfiguracoes();
     if (tab === 'recursos') { carregarSalas(); carregarProfissionais(); }
     if (tab === 'bloqueios') { carregarBloqueios(); carregarJanelas(); }
+    if (tab === 'administradores') carregarAdministradores();
   });
 });
 
@@ -690,6 +716,51 @@ document.getElementById('form-config').addEventListener('submit', async (e) => {
 });
 
 carregarAgendamentosDia();
+
+// --- Administradores ---
+async function carregarAdministradores() {
+  const admins = await api('/api/admin/administradores');
+  const meuId = sessao.usuario_id;
+  document.getElementById('lista-administradores').innerHTML = admins.map(a => `
+    <div class="list-item">
+      <div>
+        <strong>${a.nome}</strong>${a.id === meuId ? ' <span class="badge">você</span>' : ''}<br>
+        <span style="font-size:0.8rem; color:var(--ink-soft);">${a.email}</span>
+      </div>
+      ${a.id !== meuId ? `<button type="button" class="secondary btn-revogar-admin" data-id="${a.id}">Revogar acesso</button>` : ''}
+    </div>
+  `).join('') || '<p style="font-size:0.85rem;">Nenhum administrador encontrado.</p>';
+
+  document.querySelectorAll('.btn-revogar-admin').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Revogar o acesso de administrador desta pessoa? Ela passa a ser cliente comum.')) return;
+      try {
+        await api(`/api/admin/administradores/${btn.dataset.id}/revogar`, { method: 'POST' });
+        carregarAdministradores();
+      } catch (err) { alert(err.message); }
+    });
+  });
+}
+
+document.getElementById('form-admin').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  limparAlerta('alerta');
+  try {
+    await api('/api/admin/administradores', {
+      method: 'POST',
+      body: JSON.stringify({
+        nome: document.getElementById('adm-nome').value,
+        email: document.getElementById('adm-email').value,
+        whatsapp: document.getElementById('adm-whatsapp').value,
+      }),
+    });
+    mostrarAlerta('alerta', 'Administrador cadastrado! E-mail de primeiro acesso enviado.', 'success');
+    document.getElementById('form-admin').reset();
+    carregarAdministradores();
+  } catch (err) {
+    mostrarAlerta('alerta', err.message);
+  }
+});
 </script>
 </body>
 </html>

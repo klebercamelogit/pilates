@@ -65,10 +65,11 @@ CREATE TABLE IF NOT EXISTS exames_arquivos (
     id              TEXT PRIMARY KEY,
     prontuario_id   TEXT NOT NULL REFERENCES prontuarios(id) ON DELETE CASCADE,
     nome_original   TEXT NOT NULL,
-    storage_key     TEXT NOT NULL,      -- chave/path no bucket
-    storage_url     TEXT,               -- url pública ou assinada de leitura (gerada on-demand)
+    storage_backend TEXT NOT NULL DEFAULT 'local', -- 'local' | 's3' | 'db'
+    storage_key     TEXT,               -- usado quando backend = 'local' ou 's3'
+    conteudo        TEXT,               -- usado quando backend = 'db' (conteúdo em base64)
     content_type    TEXT NOT NULL,
-    tamanho_bytes   INTEGER NOT NULL CHECK (tamanho_bytes <= 314572800), -- 300MB
+    tamanho_bytes   INTEGER NOT NULL CHECK (tamanho_bytes <= 314572800), -- 300MB, teto absoluto
     enviado_em      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

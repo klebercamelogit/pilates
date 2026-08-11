@@ -22,10 +22,16 @@
       <input type="text" id="token" required>
 
       <label for="nova_senha">Defina sua senha</label>
-      <input type="password" id="nova_senha" required>
+      <div class="campo-senha">
+        <input type="password" id="nova_senha" required>
+        <button type="button" class="toggle-senha" tabindex="-1"></button>
+      </div>
 
       <label for="repetir_senha">Repita a senha</label>
-      <input type="password" id="repetir_senha" required>
+      <div class="campo-senha">
+        <input type="password" id="repetir_senha" required>
+        <button type="button" class="toggle-senha" tabindex="-1"></button>
+      </div>
 
       <label style="display:flex; align-items:flex-start; gap:0.6em; text-transform:none; font-weight:400; margin-top:0.4em;">
         <input type="checkbox" id="consentimento" style="width:auto; margin:0.2em 0 0;" required>

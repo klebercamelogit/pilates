@@ -82,7 +82,7 @@
 
       <div class="card" style="max-width:520px;">
         <h3 class="rail">Exames</h3>
-        <p style="font-size:0.85rem;">PDF, JPG ou PNG, até 300MB por arquivo.</p>
+        <p style="font-size:0.85rem;" id="texto-limite-exame">PDF, JPG ou PNG.</p>
         <div id="lista-exames" style="margin-bottom:1em;"></div>
         <form id="form-exame">
           <label for="arquivo-exame">Novo exame</label>
@@ -297,6 +297,12 @@ let prontuarioIdAtual = null;
 async function carregarProntuario() {
   limparAlerta('alerta');
   try {
+    const { max_upload_bytes } = await api('/api/exames/modo');
+    const limiteMb = (max_upload_bytes / (1024 * 1024)).toFixed(1);
+    document.getElementById('texto-limite-exame').textContent = `PDF, JPG ou PNG, até ${limiteMb}MB por arquivo.`;
+  } catch (e) { /* segue sem o texto de limite, não é crítico */ }
+
+  try {
     const registro = await api(`/api/prontuarios/${sessao.usuario_id}`);
     prontuarioIdAtual = registro.prontuario ? registro.prontuario.id : null;
 
@@ -360,15 +366,34 @@ document.getElementById('form-exame').addEventListener('submit', async (e) => {
   const arquivo = document.getElementById('arquivo-exame').files[0];
   if (!arquivo) return;
 
+  const TIPOS_PERMITIDOS = ['application/pdf', 'image/jpeg', 'image/png'];
+  const EXTENSOES_PERMITIDAS = ['pdf', 'jpg', 'jpeg', 'png'];
+  const extensao = arquivo.name.split('.').pop().toLowerCase();
+
+  if (!EXTENSOES_PERMITIDAS.includes(extensao) || !TIPOS_PERMITIDOS.includes(arquivo.type)) {
+    mostrarAlerta('alerta', 'Formato não permitido. Envie um arquivo PDF, JPG ou PNG.');
+    return;
+  }
+
   const botao = document.getElementById('btn-enviar-exame');
   botao.disabled = true;
   botao.textContent = 'Enviando...';
 
   try {
-    const prontuarioId = await garantirProntuario();
-    const { storage_mode } = await api('/api/exames/modo');
+    const { storage_mode, max_upload_bytes } = await api('/api/exames/modo');
 
-    if (storage_mode === 'local') {
+    if (arquivo.size > max_upload_bytes) {
+      const tamanhoMb = (arquivo.size / (1024 * 1024)).toFixed(1);
+      const limiteMb = (max_upload_bytes / (1024 * 1024)).toFixed(1);
+      mostrarAlerta('alerta', `Este arquivo tem ${tamanhoMb}MB. O limite é ${limiteMb}MB. Ajuste o tamanho do arquivo e reenvie.`);
+      return;
+    }
+
+    const prontuarioId = await garantirProntuario();
+
+    if (storage_mode === 'local' || storage_mode === 'db') {
+      // Os dois vão direto pro Flask via multipart — só muda onde o
+      // backend guarda o conteúdo depois (disco local ou base64 no Turso).
       const formData = new FormData();
       formData.append('prontuario_id', prontuarioId);
       formData.append('arquivo', arquivo);
@@ -377,10 +402,17 @@ document.getElementById('form-exame').addEventListener('submit', async (e) => {
         headers: { 'Authorization': `Bearer ${sessao.token}` },
         body: formData,
       });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.erro || 'Falha no envio.');
+      let data = null;
+      try { data = await resp.json(); } catch (e) { /* resposta não era JSON (ex: página de erro HTML) */ }
+      if (!resp.ok) {
+        throw new Error(
+          data && data.erro
+            ? data.erro
+            : 'O servidor não conseguiu salvar o arquivo. Se isso persistir, avise o administrador — pode ser uma configuração de armazenamento pendente.'
+        );
+      }
     } else {
-      // Modo cloud: pede URL pré-assinada, sobe direto pro bucket, e só
+      // Modo s3: pede URL pré-assinada, sobe direto pro bucket, e só
       // então registra os metadados — o Flask nunca recebe os bytes do arquivo.
       const { url_upload, storage_key } = await api('/api/exames/url-upload', {
         method: 'POST',

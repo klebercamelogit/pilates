@@ -25,9 +25,20 @@ Backend Flask + frontend em templates HTML/JS, banco Turso (libSQL), deploy em V
 - Frontend responsivo (mobile e desktop) para todas as telas
 - Estrutura de pagamento (tabela `pagamentos`) pronta para plugar gateway depois — integração ainda não escrita
 
-## ⚠️ Migração necessária no banco em produção
+## ⚠️ Migração necessária no banco em produção (rodada atual)
 
-Esta versão adiciona colunas novas em `usuarios` e `profissionais`. Antes de fazer deploy, rode no Turso Studio (SQL console — lembre de Ctrl+A antes de "Run" para executar tudo de uma vez):
+Esta versão adiciona suporte a guardar exames direto no Turso (`STORAGE_MODE=db`), sem precisar de bucket S3. Antes de fazer deploy, rode no Turso Studio (Ctrl+A antes de "Run"):
+```sql
+ALTER TABLE exames_arquivos ADD COLUMN storage_backend TEXT NOT NULL DEFAULT 'local';
+ALTER TABLE exames_arquivos ADD COLUMN conteudo TEXT;
+```
+`storage_key` continua existindo e sendo usado nos modos `local`/`s3`; `conteudo` é novo e só é preenchido no modo `db`.
+
+**Sobre o limite de 3MB no modo `db`:** o Vercel limita o corpo de requisição de qualquer função serverless a 4.5MB — isso é da infraestrutura, não dá pra contornar por configuração. Por isso `STORAGE_MODE=db` aceita só até ~3MB por arquivo (definido em `MAX_UPLOAD_BYTES_DB`), deixando margem de segurança. Exames maiores que isso (fotos de celular em alta resolução, PDFs de várias páginas) só funcionam com `STORAGE_MODE=s3` (bucket, até 300MB).
+
+## ⚠️ Migração de rodada anterior (se ainda não aplicada)
+
+Esta versão também depende de colunas adicionadas anteriormente em `usuarios` e `profissionais` — se seu banco ainda não tem essas colunas, rode também:
 ```sql
 ALTER TABLE usuarios ADD COLUMN numero TEXT;
 
@@ -101,7 +112,7 @@ No **Turso Studio** (SQL console), cole e rode `schema/schema.sql` completo, dep
 | `DB_MODE` | `cloud` |
 | `TURSO_DATABASE_URL` | a URL do banco, com prefixo **`https://`** (não `libsql://` — WebSocket não funciona em serverless) |
 | `TURSO_AUTH_TOKEN` | o token gerado acima |
-| `STORAGE_MODE` | `local` para testar sem bucket (upload de exame não funciona assim em produção — sistema de arquivos é efêmero), ou `s3` com as variáveis `S3_*` preenchidas |
+| `STORAGE_MODE` | `local` para testar sem bucket (⚠️ upload de exame **não vai funcionar de verdade** — o sistema de arquivos do Vercel é só leitura fora de `/tmp`, e mesmo `/tmp` não persiste entre execuções; o resto do sistema funciona normalmente), ou `s3` com as variáveis `S3_*` preenchidas (necessário para upload de exame funcionar em produção) |
 | `SECRET_KEY` | string aleatória longa |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_USE_TLS` | seu provedor SMTP — Gmail exige Senha de App (não a senha normal da conta), gerada em Conta Google → Segurança → Senhas de app |
 | `TERMO_LGPD_VERSAO_ATUAL` | `v1.0` |
