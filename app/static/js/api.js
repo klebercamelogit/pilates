@@ -29,8 +29,13 @@ function exigirSessao(papelEsperado) {
 }
 
 async function api(path, options = {}) {
+  const sessao = obterSessao();
+  const headers = { 'Content-Type': 'application/json' };
+  if (sessao && sessao.token) {
+    headers['Authorization'] = `Bearer ${sessao.token}`;
+  }
   const resp = await fetch(path, {
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     ...options,
   });
   let data = null;

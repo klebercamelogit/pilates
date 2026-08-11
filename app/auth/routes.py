@@ -7,24 +7,16 @@ from flask import Blueprint, request, jsonify, current_app
 
 from app.db import execute, one, new_id
 from app import notifications
+from app.authz import usuario_da_requisicao
 
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
-
-
-def _ofuscar_email(email: str) -> str:
-    usuario, dominio = email.split("@", 1)
-    if len(usuario) <= 2:
-        visivel = usuario[0] + "*"
-    else:
-        visivel = usuario[0] + "*" * (len(usuario) - 2) + usuario[-1]
-    return f"{visivel}@{dominio}"
 
 
 @bp.route("/cadastro", methods=["POST"])
 def cadastro():
     dados = request.get_json(force=True)
 
-    campos_obrigatorios = ["nome", "cpf", "email", "whatsapp", "senha",
+    campos_obrigatorios = ["nome", "email", "whatsapp", "senha",
                             "consentimento_lgpd_aceito"]
     faltando = [c for c in campos_obrigatorios if not dados.get(c)]
     if faltando:
@@ -37,25 +29,30 @@ def cadastro():
                     "sensíveis de saúde (LGPD, art. 11) para se cadastrar."
         }), 400
 
-    if one("SELECT id FROM usuarios WHERE cpf = ?", (dados["cpf"],)):
-        return jsonify({"erro": "CPF já cadastrado."}), 409
+    if one("SELECT id FROM usuarios WHERE email = ?", (dados["email"],)):
+        return jsonify({"erro": "E-mail já cadastrado."}), 409
 
     senha_hash = bcrypt.hashpw(dados["senha"].encode(), bcrypt.gensalt()).decode()
     codigo_verificacao = f"{random.randint(0, 999999):06d}"
     usuario_id = new_id()
+    # A coluna `cpf` é NOT NULL UNIQUE no schema (mantida assim de propósito,
+    # para não exigir migração no banco em produção). CPF não é mais
+    # coletado do cliente — isto é só um identificador interno opaco,
+    # nunca exibido nem usado para nada além de satisfazer a constraint.
+    cpf_interno = f"sem-cpf-{new_id()}"
 
     execute(
         """
         INSERT INTO usuarios (
-            id, nome, cpf, email, senha_hash, whatsapp, cep, endereco,
+            id, nome, cpf, email, senha_hash, whatsapp, cep, endereco, numero,
             complemento, idade, dia_nascimento, mes_nascimento, papel, ativo,
             codigo_verificacao, consentimento_lgpd_aceito, consentimento_lgpd_data,
             consentimento_lgpd_versao
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'cliente', 0, ?, 1, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'cliente', 0, ?, 1, ?, ?)
         """,
         (
-            usuario_id, dados["nome"], dados["cpf"], dados["email"], senha_hash,
-            dados["whatsapp"], dados.get("cep"), dados.get("endereco"),
+            usuario_id, dados["nome"], cpf_interno, dados["email"], senha_hash,
+            dados["whatsapp"], dados.get("cep"), dados.get("endereco"), dados.get("numero"),
             dados.get("complemento"), dados.get("idade"), dados.get("dia_nascimento"),
             dados.get("mes_nascimento"), codigo_verificacao,
             datetime.utcnow().isoformat(),
@@ -70,6 +67,30 @@ def cadastro():
 
     return jsonify({"mensagem": "Cadastro criado. Verifique seu e-mail para ativar a conta.",
                      "usuario_id": usuario_id}), 201
+
+
+@bp.route("/reenviar-codigo", methods=["POST"])
+def reenviar_codigo():
+    dados = request.get_json(force=True)
+    email = dados.get("email")
+    if not email:
+        return jsonify({"erro": "email é obrigatório."}), 400
+
+    usuario = one("SELECT id, nome FROM usuarios WHERE email = ? AND ativo = 0", (email,))
+    # Resposta genérica mesmo se não encontrar — evita confirmar/negar
+    # existência de e-mail cadastrado ou já ativado para quem não é dono dele.
+    if usuario:
+        novo_codigo = f"{random.randint(0, 999999):06d}"
+        execute(
+            "UPDATE usuarios SET codigo_verificacao = ? WHERE id = ?",
+            (novo_codigo, usuario["id"]),
+        )
+        notifications.enviar_codigo_verificacao(email, usuario["nome"], novo_codigo)
+
+    return jsonify({
+        "mensagem": "Se o e-mail existir e a conta ainda não estiver ativa, "
+                    "um novo código foi enviado."
+    })
 
 
 @bp.route("/ativar", methods=["POST"])
@@ -91,35 +112,31 @@ def ativar_conta():
 
 @bp.route("/esqueci-senha/iniciar", methods=["POST"])
 def esqueci_senha_iniciar():
-    """Passo 1: cliente informa CPF; devolvemos o e-mail ofuscado para conferência."""
+    """
+    Recuperação direta por e-mail — sem CPF em nenhuma etapa. Cliente
+    informa o e-mail; se existir e tiver senha definida, um token de
+    redefinição é gerado e enviado por e-mail. Resposta genérica sempre,
+    para não confirmar/negar existência de e-mail cadastrado.
+    """
     dados = request.get_json(force=True)
-    usuario = one("SELECT id, email FROM usuarios WHERE cpf = ?", (dados.get("cpf"),))
-    if not usuario:
-        # Resposta genérica para não confirmar/negar existência de CPF na base
-        return jsonify({"mensagem": "Se o CPF existir, um e-mail ofuscado será retornado."}), 200
+    email = dados.get("email")
+    if not email:
+        return jsonify({"erro": "email é obrigatório."}), 400
 
-    return jsonify({"email_ofuscado": _ofuscar_email(usuario["email"])})
+    usuario = one("SELECT id FROM usuarios WHERE email = ? AND senha_hash IS NOT NULL", (email,))
+    if usuario:
+        token = secrets.token_urlsafe(32)
+        expira = (datetime.utcnow() + timedelta(hours=1)).isoformat()
+        execute(
+            "UPDATE usuarios SET token_reset_senha = ?, token_reset_expira = ? WHERE id = ?",
+            (token, expira, usuario["id"]),
+        )
+        notifications.enviar_link_reset_senha(email, token)
 
-
-@bp.route("/esqueci-senha/confirmar", methods=["POST"])
-def esqueci_senha_confirmar():
-    """Passo 2: cliente digita o e-mail completo para confirmar identidade."""
-    dados = request.get_json(force=True)
-    usuario = one(
-        "SELECT id FROM usuarios WHERE cpf = ? AND email = ?",
-        (dados.get("cpf"), dados.get("email")),
-    )
-    if not usuario:
-        return jsonify({"erro": "E-mail não confere."}), 400
-
-    token = secrets.token_urlsafe(32)
-    expira = (datetime.utcnow() + timedelta(hours=1)).isoformat()
-    execute(
-        "UPDATE usuarios SET token_reset_senha = ?, token_reset_expira = ? WHERE id = ?",
-        (token, expira, usuario["id"]),
-    )
-    notifications.enviar_link_reset_senha(dados["email"], token)
-    return jsonify({"mensagem": "Link de redefinição enviado ao e-mail cadastrado."})
+    return jsonify({
+        "mensagem": "Se o e-mail existir e tiver uma conta ativa, um link de "
+                    "redefinição foi enviado."
+    })
 
 
 @bp.route("/esqueci-senha/redefinir", methods=["POST"])
@@ -204,6 +221,35 @@ def login():
     if not usuario["ativo"]:
         return jsonify({"erro": "Conta ainda não ativada."}), 403
 
-    # TODO: integrar com Flask-Login (login_user) ou emitir JWT, conforme
-    # a decisão de sessão do frontend (SSR vs SPA).
-    return jsonify({"mensagem": "Login ok", "usuario_id": usuario["id"], "papel": usuario["papel"]})
+    token = secrets.token_urlsafe(32)
+    expira = (datetime.utcnow() + timedelta(hours=12)).isoformat()
+    execute(
+        "INSERT INTO sessoes (id, usuario_id, token, expira_em) VALUES (?, ?, ?, ?)",
+        (new_id(), usuario["id"], token, expira),
+    )
+
+    return jsonify({
+        "mensagem": "Login ok",
+        "usuario_id": usuario["id"],
+        "papel": usuario["papel"],
+        "token": token,
+    })
+
+
+@bp.route("/logout", methods=["POST"])
+def logout():
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        token = auth[len("Bearer "):].strip()
+        execute("DELETE FROM sessoes WHERE token = ?", (token,))
+    return jsonify({"mensagem": "Sessão encerrada."})
+
+
+@bp.route("/eu", methods=["GET"])
+def eu():
+    """Confere se o token ainda é válido e devolve quem está logado —
+    usado pelo frontend para checar a sessão ao carregar uma página protegida."""
+    usuario = usuario_da_requisicao()
+    if not usuario:
+        return jsonify({"erro": "Não autenticado."}), 401
+    return jsonify({"usuario_id": usuario["usuario_id"], "papel": usuario["papel"], "email": usuario["email"]})

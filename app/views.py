@@ -23,6 +23,11 @@ def esqueci_senha():
     return render_template("esqueci_senha.html")
 
 
+@bp.route("/redefinir-senha")
+def redefinir_senha():
+    return render_template("redefinir_senha.html")
+
+
 @bp.route("/primeiro-acesso")
 def primeiro_acesso():
     return render_template("primeiro_acesso.html")
