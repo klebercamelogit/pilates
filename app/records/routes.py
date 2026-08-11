@@ -56,7 +56,9 @@ def upload():
     tamanho = os.path.getsize(storage.caminho_arquivo_local(storage_key))
     if tamanho > current_app.config["MAX_UPLOAD_BYTES"]:
         os.remove(storage.caminho_arquivo_local(storage_key))
-        return jsonify({"erro": "Arquivo excede 300MB."}), 413
+        tamanho_mb = round(tamanho / (1024 * 1024), 1)
+        limite_mb = round(current_app.config["MAX_UPLOAD_BYTES"] / (1024 * 1024), 1)
+        return jsonify({"erro": f"Este arquivo tem {tamanho_mb}MB. O limite é {limite_mb}MB. Ajuste o tamanho do arquivo e reenvie."}), 413
 
     exame_id = new_id()
     execute(
@@ -122,7 +124,9 @@ def confirmar_upload():
         return jsonify({"erro": "Acesso negado a este prontuário."}), 403
 
     if dados["tamanho_bytes"] > current_app.config["MAX_UPLOAD_BYTES"]:
-        return jsonify({"erro": "Arquivo excede 300MB."}), 413
+        tamanho_mb = round(dados["tamanho_bytes"] / (1024 * 1024), 1)
+        limite_mb = round(current_app.config["MAX_UPLOAD_BYTES"] / (1024 * 1024), 1)
+        return jsonify({"erro": f"Este arquivo tem {tamanho_mb}MB. O limite é {limite_mb}MB. Ajuste o tamanho do arquivo e reenvie."}), 413
 
     exame_id = new_id()
     execute(

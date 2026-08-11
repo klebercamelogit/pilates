@@ -360,6 +360,21 @@ document.getElementById('form-exame').addEventListener('submit', async (e) => {
   const arquivo = document.getElementById('arquivo-exame').files[0];
   if (!arquivo) return;
 
+  const TAMANHO_MAXIMO_BYTES = 300 * 1024 * 1024; // 300MB, mesmo limite do backend
+  const TIPOS_PERMITIDOS = ['application/pdf', 'image/jpeg', 'image/png'];
+  const EXTENSOES_PERMITIDAS = ['pdf', 'jpg', 'jpeg', 'png'];
+  const extensao = arquivo.name.split('.').pop().toLowerCase();
+
+  if (!EXTENSOES_PERMITIDAS.includes(extensao) || !TIPOS_PERMITIDOS.includes(arquivo.type)) {
+    mostrarAlerta('alerta', 'Formato não permitido. Envie um arquivo PDF, JPG ou PNG.');
+    return;
+  }
+  if (arquivo.size > TAMANHO_MAXIMO_BYTES) {
+    const tamanhoMb = (arquivo.size / (1024 * 1024)).toFixed(1);
+    mostrarAlerta('alerta', `Este arquivo tem ${tamanhoMb}MB. O limite é 300MB. Ajuste o tamanho do arquivo e reenvie.`);
+    return;
+  }
+
   const botao = document.getElementById('btn-enviar-exame');
   botao.disabled = true;
   botao.textContent = 'Enviando...';

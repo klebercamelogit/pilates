@@ -30,7 +30,7 @@ class Config:
     S3_SECRET_KEY = os.environ.get("S3_SECRET_KEY")
     S3_REGION = os.environ.get("S3_REGION", "auto")
 
-    MAX_UPLOAD_BYTES = 300 * 1024 * 1024  # 300MB
+    MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", 300 * 1024 * 1024))  # 300MB padrão
 
     # E-mail (para código de verificação e reset de senha)
     SMTP_HOST = os.environ.get("SMTP_HOST")
