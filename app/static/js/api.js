@@ -81,3 +81,31 @@ function inicializarToggleSenha() {
   });
 }
 inicializarToggleSenha();
+
+/*
+ * Menu hambúrguer mobile — abre/fecha o dropdown de navegação da sidebar
+ * em telas estreitas. Roda em qualquer página que tenha #menu-toggle e
+ * #sidebar-nav (painel do cliente e painel admin).
+ */
+function inicializarMenuMobile() {
+  const botao = document.getElementById('menu-toggle');
+  const nav = document.getElementById('sidebar-nav');
+  if (!botao || !nav) return;
+
+  botao.addEventListener('click', () => {
+    nav.classList.toggle('aberto');
+  });
+
+  // Fecha o menu ao clicar em qualquer link de navegação dentro dele.
+  nav.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', () => nav.classList.remove('aberto'));
+  });
+
+  // Fecha se clicar fora do menu (fora da sidebar inteira).
+  document.addEventListener('click', (e) => {
+    if (!nav.classList.contains('aberto')) return;
+    if (nav.contains(e.target) || botao.contains(e.target)) return;
+    nav.classList.remove('aberto');
+  });
+}
+inicializarMenuMobile();

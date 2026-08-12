@@ -69,6 +69,13 @@ Ao cadastrar um administrador pelo painel, a conta é criada já ativa com a sen
 
 Um e-mail ainda é enviado avisando sobre a senha temporária, mas não é mais necessário para o acesso funcionar — só é um aviso complementar.
 
+## Correção de responsividade mobile (rodada mais recente)
+
+Dois problemas reais de layout mobile corrigidos:
+
+1. **Cabeçalho da sidebar gigante com espaço vazio**: no CSS Grid, quando a tela empilha em coluna única (mobile), as linhas do grid esticam pra preencher a altura disponível por padrão — mesmo com pouco conteúdo. Corrigido com `grid-auto-rows: min-content` e `align-content: start` no `.app-shell`.
+2. **Menu de navegação cortando texto**: a versão anterior deixava os itens do menu em rolagem horizontal, sem indicação visual de que dava pra arrastar — a maioria das pessoas não descobre isso sozinha. Trocado por um menu hambúrguer (☰) padrão: clica, abre um dropdown com a lista completa, sem cortar nada. Funciona no painel do cliente e no admin.
+
 ## Paleta de cores atualizada (rodada mais recente)
 
 A identidade visual trocou de oliva/bronze para azul-acinzentado, com gradiente de marca (`--gradiente-marca`, de navy escuro a periwinkle claro) usado no fundo das telas de login/cadastro e na barra lateral do painel/admin — mesma estrutura de variáveis CSS de antes, só os valores mudaram, então nenhum template precisou ser tocado por causa disso.
