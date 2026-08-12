@@ -34,7 +34,7 @@ def usuario_da_requisicao():
 
     row = one(
         """
-        SELECT s.usuario_id, s.expira_em, u.papel, u.email
+        SELECT s.usuario_id, s.expira_em, u.papel, u.email, u.deve_trocar_senha
         FROM sessoes s JOIN usuarios u ON u.id = s.usuario_id
         WHERE s.token = ?
         """,
@@ -60,7 +60,10 @@ def requer_login(f):
 
 
 def requer_admin(f):
-    """Exige um token de sessão válido pertencente a um usuário com papel='admin'."""
+    """Exige um token de sessão válido pertencente a um usuário com papel='admin'.
+    Bloqueia também se a pessoa ainda não trocou a senha padrão — mesmo que
+    o frontend tenha te redirecionado antes, isso evita que um link antigo
+    ou chamada direta à API contorne a troca obrigatória."""
     @wraps(f)
     def wrapper(*args, **kwargs):
         usuario = usuario_da_requisicao()
@@ -68,6 +71,9 @@ def requer_admin(f):
             return jsonify({"erro": "Não autenticado. Faça login novamente."}), 401
         if usuario["papel"] != "admin":
             return jsonify({"erro": "Acesso restrito a administradores."}), 403
+        if usuario["deve_trocar_senha"]:
+            return jsonify({"erro": "É necessário trocar a senha antes de continuar.",
+                             "deve_trocar_senha": True}), 403
         request.usuario_atual = usuario
         return f(*args, **kwargs)
     return wrapper

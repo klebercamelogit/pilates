@@ -51,6 +51,18 @@ CREATE TABLE IF NOT EXISTS chatbot_solicitacoes (
 ```
 `profissional_id` fica `NULL` para bloqueios que valem para todos os profissionais — só precisa ser preenchido quando o bloqueio é específico de um.
 
+## ⚠️ Migração necessária no banco em produção (rodada mais recente)
+
+```sql
+ALTER TABLE usuarios ADD COLUMN deve_trocar_senha INTEGER NOT NULL DEFAULT 0;
+```
+
+## Senha padrão para novo administrador
+
+Ao cadastrar um administrador pelo painel, a conta é criada já ativa com a senha **`123456`** — não depende mais de e-mail funcionando para o primeiro acesso. Em troca disso, a conta fica marcada com `deve_trocar_senha = 1`: o login funciona normalmente, mas **toda rota `/api/admin/*` fica bloqueada (403)** até a pessoa trocar a senha em `/trocar-senha-obrigatoria` — isso é forçado tanto no frontend (redirecionamento automático após login) quanto no backend (o bloqueio não depende só do frontend se comportar direito).
+
+Um e-mail ainda é enviado avisando sobre a senha temporária, mas não é mais necessário para o acesso funcionar — só é um aviso complementar.
+
 ## Redesign visual "Mouve Pilates Studio" (rodada mais recente)
 
 **Sem migração de banco necessária desta vez** — foi só frontend (CSS, templates, um asset de imagem novo).

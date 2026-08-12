@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trocar senha — Mouve Pilates Studio</title>
+<link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+<div class="auth-shell">
+  <div class="auth-card card">
+    <div class="brand" style="align-items:center;">
+      <span class="logo-mark"><img src="/static/img/logo.png" alt="Mouve Pilates Studio"></span>
+      <div>
+        <h1 style="margin-bottom:0;">Troque sua senha</h1>
+        <span class="mark">MOUVE PILATES STUDIO</span>
+      </div>
+    </div>
+    <p>Sua conta foi criada com uma senha temporária. Por segurança, defina uma senha nova antes de continuar.</p>
+
+    <div id="alerta"></div>
+
+    <form id="form-trocar-senha">
+      <label for="senha_atual">Senha temporária atual</label>
+      <div class="campo-senha">
+        <input type="password" id="senha_atual" required>
+        <button type="button" class="toggle-senha" tabindex="-1"></button>
+      </div>
+
+      <label for="nova_senha">Nova senha</label>
+      <div class="campo-senha">
+        <input type="password" id="nova_senha" required>
+        <button type="button" class="toggle-senha" tabindex="-1"></button>
+      </div>
+
+      <label for="repetir_senha">Repetir nova senha</label>
+      <div class="campo-senha">
+        <input type="password" id="repetir_senha" required>
+        <button type="button" class="toggle-senha" tabindex="-1"></button>
+      </div>
+
+      <button type="submit" style="width:100%">Trocar senha e continuar</button>
+    </form>
+  </div>
+</div>
+
+<script src="/static/js/api.js"></script>
+<script>
+const sessao = obterSessao();
+if (!sessao || !sessao.token) {
+  window.location.href = '/';
+}
+
+document.getElementById('form-trocar-senha').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  limparAlerta('alerta');
+  const senhaAtual = document.getElementById('senha_atual').value;
+  const novaSenha = document.getElementById('nova_senha').value;
+  const repetirSenha = document.getElementById('repetir_senha').value;
+
+  if (novaSenha !== repetirSenha) {
+    mostrarAlerta('alerta', 'As senhas não conferem.');
+    return;
+  }
+  if (novaSenha === senhaAtual) {
+    mostrarAlerta('alerta', 'A nova senha precisa ser diferente da atual.');
+    return;
+  }
+
+  try {
+    await api('/api/auth/trocar-senha', {
+      method: 'POST',
+      body: JSON.stringify({ senha_atual: senhaAtual, nova_senha: novaSenha, repetir_senha: repetirSenha }),
+    });
+    mostrarAlerta('alerta', 'Senha alterada! Redirecionando...', 'success');
+    setTimeout(() => {
+      window.location.href = sessao.papel === 'admin' ? '/admin' : '/painel';
+    }, 1000);
+  } catch (err) {
+    mostrarAlerta('alerta', err.message);
+  }
+});
+</script>
+</body>
+</html>

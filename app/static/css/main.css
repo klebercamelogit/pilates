@@ -177,8 +177,8 @@ button:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
   max-width: 420px;
 }
 .logo-mark {
-  width: 40px;
-  height: 40px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   background: var(--paper-card);
   border: 1.5px solid var(--line);
@@ -188,7 +188,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
   flex-shrink: 0;
   overflow: hidden;
 }
-.logo-mark img { width: 100%; height: 100%; object-fit: contain; padding: 4px; }
+.logo-mark img { width: 100%; height: 100%; object-fit: contain; padding: 6px; }
 .sidebar .logo-mark { background: #fff; border-color: rgba(255,255,255,0.5); }
 
 .auth-card .brand {
@@ -433,6 +433,7 @@ body.app-page { background: var(--paper); padding: 20px; }
     font-size: 1rem;
   }
   .sidebar .brand .mark { display: none; }
+  .sidebar .logo-mark { width: 36px; height: 36px; }
   .sidebar nav {
     flex-direction: row;
     flex-wrap: nowrap;

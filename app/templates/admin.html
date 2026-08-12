@@ -948,7 +948,7 @@ document.getElementById('form-admin').addEventListener('submit', async (e) => {
         whatsapp: document.getElementById('adm-whatsapp').value,
       }),
     });
-    mostrarAlerta('alerta', 'Administrador cadastrado! E-mail de primeiro acesso enviado.', 'success');
+    mostrarAlerta('alerta', 'Administrador cadastrado com senha temporária "123456" — ele(a) será obrigado(a) a trocar no primeiro login.', 'success');
     document.getElementById('form-admin').reset();
     carregarAdministradores();
   } catch (err) {

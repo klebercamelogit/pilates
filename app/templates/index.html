@@ -54,7 +54,11 @@ document.getElementById('form-login').addEventListener('submit', async (e) => {
       body: JSON.stringify({ email, senha }),
     });
     salvarSessao({ usuario_id: data.usuario_id, papel: data.papel, email, token: data.token });
-    window.location.href = data.papel === 'admin' ? '/admin' : '/painel';
+    if (data.deve_trocar_senha) {
+      window.location.href = '/trocar-senha-obrigatoria';
+    } else {
+      window.location.href = data.papel === 'admin' ? '/admin' : '/painel';
+    }
   } catch (err) {
     mostrarAlerta('alerta', err.message);
   }

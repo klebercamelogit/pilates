@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
     consentimento_lgpd_data       TEXT,           -- timestamp do aceite
     consentimento_lgpd_versao     TEXT,           -- versão do termo aceito, para auditoria
 
+    deve_trocar_senha INTEGER NOT NULL DEFAULT 0, -- força troca no próximo login (ex: admin criado com senha padrão)
+
     criado_em       TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

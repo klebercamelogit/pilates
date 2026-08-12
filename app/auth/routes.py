@@ -7,7 +7,7 @@ from flask import Blueprint, request, jsonify, current_app
 
 from app.db import execute, one, new_id
 from app import notifications
-from app.authz import usuario_da_requisicao
+from app.authz import usuario_da_requisicao, requer_login
 
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
@@ -207,11 +207,45 @@ def primeiro_acesso():
     return jsonify({"mensagem": "Conta ativada e senha definida com sucesso."})
 
 
+@bp.route("/trocar-senha", methods=["POST"])
+@requer_login
+def trocar_senha():
+    """
+    Usado tanto para a troca obrigatória (admin com senha padrão) quanto
+    pra qualquer pessoa que queira trocar a própria senha estando logada.
+    Exige a senha atual, não só a nova — evita que alguém com uma sessão
+    aberta em um computador compartilhado troque a senha sem saber a atual.
+    """
+    dados = request.get_json(force=True)
+    senha_atual = dados.get("senha_atual")
+    nova_senha = dados.get("nova_senha")
+    repetir_senha = dados.get("repetir_senha")
+
+    if not senha_atual or not nova_senha:
+        return jsonify({"erro": "senha_atual e nova_senha são obrigatórias."}), 400
+    if nova_senha != repetir_senha:
+        return jsonify({"erro": "As senhas não conferem."}), 400
+
+    usuario_id = request.usuario_atual["usuario_id"]
+    usuario = one("SELECT senha_hash FROM usuarios WHERE id = ?", (usuario_id,))
+    if not usuario or not usuario["senha_hash"] or not bcrypt.checkpw(
+        senha_atual.encode(), usuario["senha_hash"].encode()
+    ):
+        return jsonify({"erro": "Senha atual incorreta."}), 401
+
+    novo_hash = bcrypt.hashpw(nova_senha.encode(), bcrypt.gensalt()).decode()
+    execute(
+        "UPDATE usuarios SET senha_hash = ?, deve_trocar_senha = 0 WHERE id = ?",
+        (novo_hash, usuario_id),
+    )
+    return jsonify({"mensagem": "Senha alterada com sucesso."})
+
+
 @bp.route("/login", methods=["POST"])
 def login():
     dados = request.get_json(force=True)
     usuario = one(
-        "SELECT id, senha_hash, ativo, papel FROM usuarios WHERE email = ?",
+        "SELECT id, senha_hash, ativo, papel, deve_trocar_senha FROM usuarios WHERE email = ?",
         (dados.get("email"),),
     )
     if not usuario or not usuario["senha_hash"]:
@@ -233,6 +267,7 @@ def login():
         "usuario_id": usuario["id"],
         "papel": usuario["papel"],
         "token": token,
+        "deve_trocar_senha": bool(usuario["deve_trocar_senha"]),
     })
 
 

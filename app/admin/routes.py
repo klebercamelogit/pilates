@@ -1,4 +1,5 @@
 import secrets
+import bcrypt
 from datetime import datetime
 
 from flask import Blueprint, request, jsonify, current_app
@@ -24,9 +25,10 @@ def listar_administradores():
 @requer_admin
 def criar_administrador():
     """
-    Cria um novo administrador. Mesmo fluxo de segurança do cadastro manual
-    de cliente: a senha nunca é definida aqui, o novo admin recebe um
-    e-mail de primeiro acesso e define a própria senha.
+    Cria um novo administrador com senha padrão "123456" — já ativo,
+    sem depender de e-mail funcionando para o primeiro acesso. Em troca,
+    isso é uma senha conhecida/previsível, então `deve_trocar_senha` fica
+    marcado e o login bloqueia acesso ao sistema até a pessoa trocar.
     """
     dados = request.get_json(force=True)
     obrigatorios = ["nome", "email", "whatsapp"]
@@ -38,22 +40,21 @@ def criar_administrador():
         return jsonify({"erro": "E-mail já cadastrado."}), 409
 
     usuario_id = new_id()
-    token_primeiro_acesso = secrets.token_urlsafe(32)
     cpf_interno = f"sem-cpf-{new_id()}"
+    senha_hash = bcrypt.hashpw(b"123456", bcrypt.gensalt()).decode()
 
     execute(
         """
         INSERT INTO usuarios (
             id, nome, cpf, email, senha_hash, whatsapp, papel, ativo,
-            token_reset_senha, consentimento_lgpd_aceito
-        ) VALUES (?, ?, ?, ?, NULL, ?, 'admin', 0, ?, 0)
+            consentimento_lgpd_aceito, deve_trocar_senha
+        ) VALUES (?, ?, ?, ?, ?, ?, 'admin', 1, 0, 1)
         """,
-        (usuario_id, dados["nome"], cpf_interno, dados["email"], dados["whatsapp"],
-         token_primeiro_acesso),
+        (usuario_id, dados["nome"], cpf_interno, dados["email"], senha_hash, dados["whatsapp"]),
     )
-    notifications.enviar_primeiro_acesso(dados["email"], dados["nome"], token_primeiro_acesso)
+    notifications.enviar_senha_temporaria_admin(dados["email"], dados["nome"])
 
-    return jsonify({"mensagem": "Administrador cadastrado. E-mail de primeiro acesso enviado.",
+    return jsonify({"mensagem": "Administrador cadastrado com senha temporária. E-mail enviado com instruções.",
                      "usuario_id": usuario_id}), 201
 
 

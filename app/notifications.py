@@ -87,6 +87,17 @@ def enviar_link_reset_senha(email: str, token: str) -> None:
     enviar_email(email, "Redefinição de senha — Clínica de Pilates", corpo)
 
 
+def enviar_senha_temporaria_admin(email: str, nome: str) -> None:
+    corpo = (
+        f"Olá, {nome}!\n\n"
+        "Você foi cadastrado(a) como administrador(a) do sistema da clínica.\n\n"
+        "Senha temporária: 123456\n\n"
+        "Por segurança, você vai precisar trocar essa senha assim que fizer login "
+        "pela primeira vez — o sistema não deixa continuar sem trocar."
+    )
+    enviar_email(email, "Acesso de administrador criado", corpo)
+
+
 def enviar_primeiro_acesso(email: str, nome: str, token: str) -> None:
     cfg = current_app.config
     base = cfg.get("FRONTEND_BASE_URL")
