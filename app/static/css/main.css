@@ -1,22 +1,24 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 :root {
-  --teal: #758755;        /* bronze — cor primária de botões e sidebar */
-  --teal-dark: #5a6140;   /* night — hover, gradiente escuro */
-  --teal-tint: #e2ebd6;   /* straw — fundo suave, dias disponíveis */
-  --ink: #3f4935;         /* text */
-  --ink-soft: #68745b;    /* muted */
-  --paper: #f3f6ee;       /* bg */
-  --paper-alt: #e2ebd6;   /* straw */
-  --paper-card: #fcfdf9;  /* surface */
-  --blue: #5a6140;        /* night — reusado para "selecionado" (o mockup usa tom escuro, não azul) */
-  --blue-tint: #e2ebd6;
-  --yellow: #a2bb70;      /* gold — destaques, "hoje" */
-  --yellow-tint: #eef3e0;
-  --sand: #a2bb70;        /* gold — usado inline nos templates (texto da sidebar) */
+  --teal: #4a5570;        /* slate — cor primária de botões e sidebar */
+  --teal-dark: #363f56;   /* navy — hover, gradiente escuro */
+  --teal-tint: #e6e9f0;   /* tint claro — fundo suave, dias disponíveis */
+  --ink: #333949;         /* text */
+  --ink-soft: #6b7286;    /* muted */
+  --paper: #f4f5f8;       /* bg */
+  --paper-alt: #e8eaf0;
+  --paper-card: #ffffff;  /* surface */
+  --blue: #2e3650;        /* navy escuro — "selecionado" */
+  --blue-tint: #e6e9f0;
+  --yellow: #7c89ac;      /* periwinkle — destaques, "hoje" */
+  --yellow-tint: #eef0f6;
+  --sand: #b7bfd6;        /* usado inline nos templates (texto da sidebar) */
   --danger: #a6524b;
   --danger-tint: #f3e2df;
-  --line: #d6ddca;
+  --line: #dde0e9;
+
+  --gradiente-marca: linear-gradient(165deg, #454f6b 0%, #6b7998 55%, #94a0be 100%);
 
   --font-display: 'Poppins', sans-serif;
   --font-body: 'IBM Plex Sans', sans-serif;
@@ -24,7 +26,7 @@
 
   --radius: 20px;
   --radius-sm: 12px;
-  --shadow: 0 2px 6px rgba(63, 73, 53, 0.07), 0 18px 40px -14px rgba(63, 73, 53, 0.28);
+  --shadow: 0 2px 6px rgba(51, 57, 73, 0.07), 0 18px 40px -14px rgba(51, 57, 73, 0.28);
 }
 
 * { box-sizing: border-box; }
@@ -168,9 +170,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
   align-items: center;
   justify-content: center;
   padding: 2rem 1rem;
-  background: var(--teal);
-  background-image: radial-gradient(circle at 15% 15%, rgba(255,255,255,0.06), transparent 45%),
-                     radial-gradient(circle at 85% 85%, rgba(255,255,255,0.05), transparent 45%);
+  background: var(--gradiente-marca);
 }
 .auth-card {
   width: 100%;
@@ -214,7 +214,7 @@ body.app-page { background: var(--paper); padding: 20px; }
   box-shadow: var(--shadow);
 }
 .sidebar {
-  background: var(--teal);
+  background: var(--gradiente-marca);
   color: #fff;
   padding: 1.8em 1.4em;
   display: flex;
@@ -281,7 +281,7 @@ body.app-page { background: var(--paper); padding: 20px; }
   background: var(--blue-tint);
   color: var(--teal-dark);
 }
-.badge.plum { background: var(--yellow-tint); color: #5c6b2f; }
+.badge.plum { background: var(--yellow-tint); color: var(--teal-dark); }
 .badge.danger { background: var(--danger-tint); color: var(--danger); }
 
 .alert {

@@ -51,6 +51,12 @@ CREATE TABLE IF NOT EXISTS chatbot_solicitacoes (
 ```
 `profissional_id` fica `NULL` para bloqueios que valem para todos os profissionais — só precisa ser preenchido quando o bloqueio é específico de um.
 
+## Correção de bug: upload em modo `db` falhava mesmo com schema correto
+
+Se você criou o banco Turso bem no início do projeto, a coluna `storage_key` de `exames_arquivos` foi criada como `NOT NULL` (schema antigo). Como só aplicamos migrações via `ALTER TABLE ADD COLUMN` depois, essa restrição nunca foi removida — e o modo `db` nunca preenchia essa coluna (o conteúdo vai em `conteudo`, não em `storage_key`), então todo upload falhava com erro genérico do Turso, não importa o tamanho do arquivo.
+
+**Corrigido no código** (não precisa de migração nova): o upload em modo `db` agora sempre preenche `storage_key` com um valor placeholder (`db:<id-do-exame>`), satisfazendo a constraint em qualquer banco, novo ou antigo. Testado reproduzindo o erro exato contra um banco simulando o schema legado, e confirmando que a correção resolve.
+
 ## ⚠️ Migração necessária no banco em produção (rodada mais recente)
 
 ```sql
@@ -62,6 +68,10 @@ ALTER TABLE usuarios ADD COLUMN deve_trocar_senha INTEGER NOT NULL DEFAULT 0;
 Ao cadastrar um administrador pelo painel, a conta é criada já ativa com a senha **`123456`** — não depende mais de e-mail funcionando para o primeiro acesso. Em troca disso, a conta fica marcada com `deve_trocar_senha = 1`: o login funciona normalmente, mas **toda rota `/api/admin/*` fica bloqueada (403)** até a pessoa trocar a senha em `/trocar-senha-obrigatoria` — isso é forçado tanto no frontend (redirecionamento automático após login) quanto no backend (o bloqueio não depende só do frontend se comportar direito).
 
 Um e-mail ainda é enviado avisando sobre a senha temporária, mas não é mais necessário para o acesso funcionar — só é um aviso complementar.
+
+## Paleta de cores atualizada (rodada mais recente)
+
+A identidade visual trocou de oliva/bronze para azul-acinzentado, com gradiente de marca (`--gradiente-marca`, de navy escuro a periwinkle claro) usado no fundo das telas de login/cadastro e na barra lateral do painel/admin — mesma estrutura de variáveis CSS de antes, só os valores mudaram, então nenhum template precisou ser tocado por causa disso.
 
 ## Redesign visual "Mouve Pilates Studio" (rodada mais recente)
 

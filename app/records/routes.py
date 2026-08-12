@@ -81,14 +81,19 @@ def upload():
             return jsonify({"erro": _erro_tamanho(tamanho, limite)}), 413
 
         conteudo_b64 = base64.b64encode(conteudo_bytes).decode("ascii")
+        # storage_key não é usado no modo 'db' (o conteúdo vai na coluna
+        # `conteudo`), mas alguns bancos criados com uma versão antiga do
+        # schema ainda têm essa coluna como NOT NULL — preenchemos um
+        # placeholder pra não depender de migrar essa constraint específica.
+        storage_key_placeholder = f"db:{exame_id}"
         execute(
             """
             INSERT INTO exames_arquivos
-                (id, prontuario_id, nome_original, storage_backend, conteudo,
+                (id, prontuario_id, nome_original, storage_backend, storage_key, conteudo,
                  content_type, tamanho_bytes)
-            VALUES (?, ?, ?, 'db', ?, ?, ?)
+            VALUES (?, ?, ?, 'db', ?, ?, ?, ?)
             """,
-            (exame_id, prontuario_id, arquivo.filename, conteudo_b64,
+            (exame_id, prontuario_id, arquivo.filename, storage_key_placeholder, conteudo_b64,
              arquivo.content_type, tamanho),
         )
         return jsonify({"mensagem": "Exame enviado.", "exame_id": exame_id}), 201
