@@ -1,21 +1,22 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 :root {
-  --teal: #0e6e6a;
-  --teal-dark: #094f4c;
-  --teal-tint: #e3f3f1;
-  --ink: #12302e;
-  --ink-soft: #587471;
-  --paper: #f4f8f7;
-  --paper-alt: #e8f0ef;
-  --paper-card: #ffffff;
-  --blue: #3b82f6;
-  --blue-tint: #dbe9fe;
-  --yellow: #f7b500;
-  --yellow-tint: #fef3d6;
-  --danger: #dc4c4c;
-  --danger-tint: #fbe4e4;
-  --line: rgba(18, 48, 46, 0.10);
+  --teal: #758755;        /* bronze — cor primária de botões e sidebar */
+  --teal-dark: #5a6140;   /* night — hover, gradiente escuro */
+  --teal-tint: #e2ebd6;   /* straw — fundo suave, dias disponíveis */
+  --ink: #3f4935;         /* text */
+  --ink-soft: #68745b;    /* muted */
+  --paper: #f3f6ee;       /* bg */
+  --paper-alt: #e2ebd6;   /* straw */
+  --paper-card: #fcfdf9;  /* surface */
+  --blue: #5a6140;        /* night — reusado para "selecionado" (o mockup usa tom escuro, não azul) */
+  --blue-tint: #e2ebd6;
+  --yellow: #a2bb70;      /* gold — destaques, "hoje" */
+  --yellow-tint: #eef3e0;
+  --sand: #a2bb70;        /* gold — usado inline nos templates (texto da sidebar) */
+  --danger: #a6524b;
+  --danger-tint: #f3e2df;
+  --line: #d6ddca;
 
   --font-display: 'Poppins', sans-serif;
   --font-body: 'IBM Plex Sans', sans-serif;
@@ -23,7 +24,7 @@
 
   --radius: 20px;
   --radius-sm: 12px;
-  --shadow: 0 2px 6px rgba(14, 110, 106, 0.06), 0 14px 32px -12px rgba(14, 110, 106, 0.22);
+  --shadow: 0 2px 6px rgba(63, 73, 53, 0.07), 0 18px 40px -14px rgba(63, 73, 53, 0.28);
 }
 
 * { box-sizing: border-box; }
@@ -175,6 +176,21 @@ button:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
   width: 100%;
   max-width: 420px;
 }
+.logo-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--paper-card);
+  border: 1.5px solid var(--line);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.logo-mark img { width: 100%; height: 100%; object-fit: contain; padding: 4px; }
+.sidebar .logo-mark { background: #fff; border-color: rgba(255,255,255,0.5); }
+
 .auth-card .brand {
   display: flex;
   align-items: baseline;
@@ -188,10 +204,14 @@ button:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
   letter-spacing: 0.08em;
 }
 
+body.app-page { background: var(--paper); padding: 20px; }
 .app-shell {
   display: grid;
   grid-template-columns: 240px 1fr;
-  min-height: 100vh;
+  min-height: calc(100vh - 40px);
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
 }
 .sidebar {
   background: var(--teal);
@@ -259,9 +279,9 @@ button:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
   padding: 0.25em 0.7em;
   border-radius: 999px;
   background: var(--blue-tint);
-  color: #1d4ed8;
+  color: var(--teal-dark);
 }
-.badge.plum { background: var(--yellow-tint); color: #92620a; }
+.badge.plum { background: var(--yellow-tint); color: #5c6b2f; }
 .badge.danger { background: var(--danger-tint); color: var(--danger); }
 
 .alert {
@@ -398,7 +418,8 @@ button:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1em; }
 
 @media (max-width: 720px) {
-  .app-shell { grid-template-columns: 1fr; }
+  body.app-page { padding: 8px; }
+  .app-shell { grid-template-columns: 1fr; border-radius: 18px; min-height: calc(100vh - 16px); }
 
   .sidebar {
     flex-direction: row;
@@ -455,6 +476,70 @@ button:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
   h1 { font-size: 1.3rem; }
   .sidebar .brand { font-size: 0.92rem; }
   button, .btn { padding: 0.65em 1.2em; font-size: 0.86rem; }
+}
+
+.app-shell-agenda { grid-template-columns: 320px 1fr; }
+
+#sidebar-calendario-wrap { margin-top: 1.4em; }
+.calendar-card-sidebar {
+  padding: 1.1em;
+  box-shadow: none;
+}
+.calendar-card-sidebar .month-label { font-size: 0.92rem; }
+.calendar-card-sidebar .day-cell { font-size: 0.72rem; }
+.calendar-card-sidebar .weekday { font-size: 0.56rem; }
+.calendar-card-sidebar .calendar-legend {
+  font-size: 0.66rem;
+  gap: 0.7em;
+  padding-top: 0.8em;
+}
+
+@media (max-width: 720px) {
+  .app-shell-agenda { grid-template-columns: 1fr; }
+  #sidebar-calendario-wrap { width: 100%; margin-top: 1em; }
+}
+.stepper-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  background: var(--paper-alt);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.35em 0.9em 0.35em 0.35em;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.stepper-pill .passo-ativo {
+  background: var(--teal);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.4em 0.9em;
+}
+.stepper-pill .passo-inativo { color: var(--ink-soft); }
+.stepper-pill .linha { width: 16px; height: 1.5px; background: var(--line); }
+
+/* --- Campo com ícone (sala/profissional/horário) --- */
+.campo-icone { position: relative; margin-bottom: 1em; }
+.campo-icone .icone {
+  position: absolute;
+  left: 0.7em;
+  top: 2.15em;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: var(--teal-tint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  pointer-events: none;
+}
+.campo-icone select {
+  padding-left: 2.9em;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2368745b' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.9em center;
 }
 
 /* --- Widget de chatbot público --- */

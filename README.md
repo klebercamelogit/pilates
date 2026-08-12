@@ -51,6 +51,16 @@ CREATE TABLE IF NOT EXISTS chatbot_solicitacoes (
 ```
 `profissional_id` fica `NULL` para bloqueios que valem para todos os profissionais — só precisa ser preenchido quando o bloqueio é específico de um.
 
+## Redesign visual "Mouve Pilates Studio" (rodada mais recente)
+
+**Sem migração de banco necessária desta vez** — foi só frontend (CSS, templates, um asset de imagem novo).
+
+- Paleta trocada de teal para oliva/bronze (`#758755`/`#5A6140`), seguindo referência visual fornecida
+- Nome do sistema: "Mouve Pilates Studio", com logo real em `app/static/img/logo.png`
+- Painel do cliente reestruturado: o calendário de agendamento agora fica dentro da barra lateral (verde-oliva), não mais numa coluna ao lado do formulário — a área principal (branca) mostra só o título e o formulário de horário
+- Indicador de etapas decorativo ("01 Data — 02 Detalhes") e campos de sala/profissional/horário com ícone — visual apenas, o comportamento funcional (validação, submissão) não mudou
+- Se quiser trocar a logo depois, é só substituir o arquivo `app/static/img/logo.png` por outro do mesmo nome — não precisa mexer em nenhum template
+
 ## Novidades desta rodada
 
 - **Bloqueio de agenda por profissional**: ao criar um bloqueio de dia ou janela indisponível, o admin pode escolher "todos os profissionais" (comportamento anterior) ou um profissional específico.

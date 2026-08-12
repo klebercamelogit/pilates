@@ -3,18 +3,39 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Meu painel — Clínica de Pilates</title>
+<title>Meu painel — Mouve Pilates Studio</title>
 <link rel="stylesheet" href="/static/css/main.css">
 </head>
-<body>
-<div class="app-shell">
+<body class="app-page">
+<div class="app-shell app-shell-agenda">
   <aside class="sidebar">
-    <div class="brand">Pilates<span class="mark">STUDIO / RAIL 01</span></div>
+    <div class="brand" style="display:flex; align-items:center; gap:0.7em;">
+      <span class="logo-mark"><img src="/static/img/logo.png" alt="Mouve Pilates Studio"></span>
+      <div>Mouve<span class="mark">PILATES STUDIO</span></div>
+    </div>
     <nav>
       <a href="#" class="tab-link active" data-tab="agendar">Agendar sessão</a>
       <a href="#" class="tab-link" data-tab="historico">Meus agendamentos</a>
       <a href="#" class="tab-link" data-tab="prontuario">Meu prontuário</a>
     </nav>
+
+    <!-- Calendário mora na sidebar (segue o mockup), só visível na aba "Agendar" -->
+    <div id="sidebar-calendario-wrap">
+      <div class="calendar-card calendar-card-sidebar">
+        <div class="calendar-header">
+          <button type="button" class="calendar-nav-btn" id="mes-anterior" aria-label="Mês anterior">‹</button>
+          <span class="month-label" id="mes-atual-label"></span>
+          <button type="button" class="calendar-nav-btn" id="mes-seguinte" aria-label="Próximo mês">›</button>
+        </div>
+        <div class="calendar-grid" id="calendario"></div>
+        <div class="calendar-legend">
+          <span class="item"><span class="dot disponivel"></span> Disponível</span>
+          <span class="item"><span class="dot hoje"></span> Hoje</span>
+          <span class="item"><span class="dot selecionado"></span> Selecionado</span>
+        </div>
+      </div>
+    </div>
+
     <div class="spacer"></div>
     <span id="nome-usuario" style="font-size:0.8rem; color: var(--sand);"></span>
     <span class="logout" id="btn-logout" style="margin-top:0.6em;">Sair</span>
@@ -25,47 +46,47 @@
 
     <!-- ABA: AGENDAR -->
     <section id="painel-agendar">
-      <h1 class="rail">Agendar sessão</h1>
-      <p>Escolha um dia disponível no calendário e o horário desejado.</p>
+      <span style="font-size:0.75rem; font-weight:600; color:var(--teal); text-transform:uppercase; letter-spacing:0.06em;">Painel de agendamento</span>
+      <h1 class="rail" style="margin-top:0.3em;">Nova sessão</h1>
+      <p>Escolha um dia disponível no calendário ao lado e preencha os detalhes.</p>
       <label style="display:flex; align-items:center; gap:0.5em; text-transform:none; font-weight:400; margin-bottom:1em;">
         <input type="checkbox" id="modo-multi-dia" style="width:auto;">
         Agendar em vários dias (mesmo horário, mesmo profissional)
       </label>
 
-      <div class="grid-2" style="align-items:start;">
-        <div class="calendar-card">
-          <div class="calendar-header">
-            <button type="button" class="calendar-nav-btn" id="mes-anterior" aria-label="Mês anterior">‹</button>
-            <span class="month-label" id="mes-atual-label"></span>
-            <button type="button" class="calendar-nav-btn" id="mes-seguinte" aria-label="Próximo mês">›</button>
-          </div>
-          <div class="calendar-grid" id="calendario"></div>
-          <div class="calendar-legend">
-            <span class="item"><span class="dot disponivel"></span> Disponível</span>
-            <span class="item"><span class="dot indisponivel"></span> Indisponível</span>
-            <span class="item"><span class="dot selecionado"></span> Selecionado</span>
-            <span class="item"><span class="dot hoje"></span> Hoje</span>
-          </div>
-        </div>
-
+      <div style="max-width:460px;">
         <div class="card" id="form-horario-card" style="display:none;">
+          <div class="stepper-pill" style="margin-bottom:1em;">
+            <span class="passo-ativo">01 Data</span>
+            <span class="linha"></span>
+            <span class="passo-inativo">02 Detalhes</span>
+          </div>
           <h3 class="rail" id="titulo-form-horario">Horário — <span id="data-selecionada"></span></h3>
           <div id="dias-selecionados-lista" style="display:none; margin-bottom:1em; font-size:0.85rem; color:var(--ink-soft);"></div>
           <form id="form-agendamento">
             <label for="sala">Sala</label>
-            <select id="sala" required></select>
+            <div class="campo-icone">
+              <span class="icone">📍</span>
+              <select id="sala" required></select>
+            </div>
 
             <label for="profissional">Profissional</label>
-            <select id="profissional" required></select>
+            <div class="campo-icone">
+              <span class="icone">🧑</span>
+              <select id="profissional" required></select>
+            </div>
 
             <label for="horario">Horário</label>
-            <select id="horario" required></select>
+            <div class="campo-icone">
+              <span class="icone">🕐</span>
+              <select id="horario" required></select>
+            </div>
 
             <button type="submit" style="width:100%" id="btn-confirmar-agendamento">Confirmar agendamento</button>
           </form>
           <div id="resultado-multi-dia" style="margin-top:1em;"></div>
         </div>
-        </div>
+        <div class="empty-state" id="dica-selecione-dia">Selecione um dia disponível no calendário ao lado para continuar.</div>
       </div>
     </section>
 
@@ -128,6 +149,7 @@ document.querySelectorAll('.tab-link').forEach(link => {
     document.getElementById('painel-agendar').style.display = tab === 'agendar' ? 'block' : 'none';
     document.getElementById('painel-historico').style.display = tab === 'historico' ? 'block' : 'none';
     document.getElementById('painel-prontuario').style.display = tab === 'prontuario' ? 'block' : 'none';
+    document.getElementById('sidebar-calendario-wrap').style.display = tab === 'agendar' ? 'block' : 'none';
     if (tab === 'historico') carregarHistorico();
     if (tab === 'prontuario') carregarProntuario();
   });
@@ -200,6 +222,7 @@ document.getElementById('modo-multi-dia').addEventListener('change', () => {
   diasSelecionadosMulti.clear();
   document.querySelectorAll('.day-cell.selecionado').forEach(c => c.classList.remove('selecionado'));
   document.getElementById('form-horario-card').style.display = 'none';
+  document.getElementById('dica-selecione-dia').style.display = 'block';
   document.getElementById('resultado-multi-dia').innerHTML = '';
 });
 
@@ -214,6 +237,7 @@ async function selecionarDia(dataStr, el) {
     }
     if (diasSelecionadosMulti.size === 0) {
       document.getElementById('form-horario-card').style.display = 'none';
+      document.getElementById('dica-selecione-dia').style.display = 'block';
       return;
     }
     document.getElementById('titulo-form-horario').innerHTML =
@@ -235,6 +259,7 @@ async function selecionarDia(dataStr, el) {
     document.getElementById('btn-confirmar-agendamento').textContent = 'Confirmar agendamento';
   }
 
+  document.getElementById('dica-selecione-dia').style.display = 'none';
   document.getElementById('form-horario-card').style.display = 'block';
   document.getElementById('resultado-multi-dia').innerHTML = '';
 
@@ -306,6 +331,7 @@ document.getElementById('form-agendamento').addEventListener('submit', async (e)
       });
       mostrarAlerta('alerta', 'Agendamento confirmado!', 'success');
       document.getElementById('form-horario-card').style.display = 'none';
+      document.getElementById('dica-selecione-dia').style.display = 'block';
       carregarCalendario();
     } catch (err) {
       mostrarAlerta('alerta', err.message);
